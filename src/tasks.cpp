@@ -216,7 +216,6 @@ std::ostream& operator<<(std::ostream& os, const TaskNetwork& network) {
 			os << tasksIdsMap[task] << "<" << tasksIdsMap[succ];
 		}
 	}
-	os << std::endl;
 
 	return os;
 }

@@ -24,4 +24,6 @@ HEADERS += src/domain.hpp \
     src/scope.hpp \
     src/tasks.hpp \
     src/problems/robots.hpp \
-    src/problems/basic.hpp
+    src/problems/basic.hpp \
+    src/state.hpp \
+    src/problems/mini-robots.hpp

@@ -4,12 +4,12 @@
 
 #include "plan.hpp"
 #include <boost/optional.hpp>
+#include <set>
 #include <map>
 
 
 struct Problem;
-struct Atom;
-typedef std::vector<Atom> State;
+struct State;
 struct TaskNetwork;
 struct CNF;
 typedef int Cost;
@@ -25,8 +25,8 @@ struct Planner9 {
 private:
 
 	void step();
-	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions);
-	void addNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions);
+	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
+	void addNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	void success(const Plan& plan);
 
 	typedef std::multimap<Cost, TreeNode*> Nodes;

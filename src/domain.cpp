@@ -1,5 +1,6 @@
 #include "domain.hpp"
 #include "logic.hpp"
+#include "relations.hpp"
 #include <algorithm>
 #include <boost/algorithm/string/join.hpp>
 #include <cstdarg>
@@ -60,6 +61,16 @@ void Action::add(const ScopedProposition& scopedAtom) {
 
 void Action::del(const ScopedProposition& scopedAtom) {
 	effect(scopedAtom, true);
+}
+
+State Action::Effects::apply(const State& state, const Scope::Indices subst) const {
+	State newState(state);
+	for (const_iterator it = begin(); it != end(); ++it) {
+		Literal literal = *it;
+		literal.substitute(subst);
+		literal.atom.relation->set(literal, newState);
+	}
+	return newState;
 }
 
 void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
@@ -136,6 +147,7 @@ void Method::alternative(const ScopedProposition& precondition, const ScopedTask
 	TaskNetwork network3 = network2.substitute(substs2.first); // TODO: mutating substitute
 
 	// compute parameters indices in the alternative scope
+	// TODO: FIXME: this substitution is wrong
 	Scope::Indices subst = getVariables().substitute(substs2.second);
 	for(Scope::Index i = 0; i < scope.getSize(); ++i) {
 		if(std::find(subst.begin(), subst.end(), i) == subst.end()) {

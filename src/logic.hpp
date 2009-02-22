@@ -23,6 +23,8 @@ struct Atom: Proposition {
 
 	Atom(const Relation* relation, const Scope::Indices& params);
 
+	bool operator<(const Atom& that) const;
+
 	Atom* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;

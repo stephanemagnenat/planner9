@@ -4,6 +4,7 @@
 
 #include "logic.hpp"
 #include "tasks.hpp"
+#include "state.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,7 +53,9 @@ struct Action: Head { // TODO: allow free local variables, like in an alternativ
 
 	void del(const ScopedProposition& atom);
 
-	typedef std::vector<Literal> Effects;
+	struct Effects:public std::vector<Literal>  {
+		State apply(const State& state, const Scope::Indices subst) const;
+	};
 
 //	std::vector<std::pair<GroundInstance, Substitution> > groundings();
 	const CNF& getPrecondition() const { return precondition; }

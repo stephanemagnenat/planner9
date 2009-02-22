@@ -1,4 +1,4 @@
-#include "problems/robots.hpp"
+#include "problems/mini-robots.hpp"
 #include "planner9.hpp"
 
 
@@ -15,6 +15,8 @@ int main(int argc, char* argv[]) {
 */
 	MyProblem problem;
 	std::cout << Scope::setScope(problem.scope);
+	std::cout << "initial state: "<< problem.state << std::endl;
+	std::cout << "initial network: " << problem.network << std::endl;
 
 	Planner9 planner(problem);
 

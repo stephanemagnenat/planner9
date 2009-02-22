@@ -1,12 +1,10 @@
 #ifndef PROBLEM_HPP_
 #define PROBLEM_HPP_
 
-
 #include "logic.hpp"
 #include "tasks.hpp"
-
-
-typedef std::vector<Atom> State;
+#include "state.hpp"
+#include <set>
 
 struct Problem {
 

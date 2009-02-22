@@ -2,26 +2,29 @@
 #include "domain.hpp"
 #include "problem.hpp"
 #include "logic.hpp"
+#include "relations.hpp"
 #include <iostream>
 #include <set>
 
 
 // nodes in our search tree
 struct TreeNode {
-	TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions);
+	TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	const Plan plan;
 	const TaskNetwork network; // T
 	const size_t allocatedVariablesCount;
 	const Cost cost;
 	const CNF preconditions;
+	const State state;
 };
 
-TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions):
+TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
 	plan(plan),
 	network(network),
 	allocatedVariablesCount(allocatedVariablesCount),
 	cost(cost),
-	preconditions(preconditions) {
+	preconditions(preconditions),
+	state(state) {
 }
 
 
@@ -33,7 +36,7 @@ Planner9::Planner9(const Problem& problem):
 // HTN: procedure SHOP2(s, T, D)
 boost::optional<Plan> Planner9::plan() {
 	// HTN: P = the empty plan
-	addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF());
+	addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
 
 	/* TODO: prevent infinite recursion with either:
 	 * - maximum weight
@@ -58,22 +61,23 @@ void Planner9::step() {
 	Cost cost = front->first;
 	TreeNode* node = front->second;
 
-	std::cout << "-" << cost << " ";
-	std::cout << node->network;
+	std::cout << "\n-" << cost << std::endl;
+	std::cout << "do " << node->network << std::endl;
+	std::cout << "such that " << node->preconditions << std::endl;
+	std::cout << "knowing " << node->state << std::endl;
 
 	nodes.erase(front);
 
-	visitNode(node->plan, node->network, node->allocatedVariablesCount, node->cost, node->preconditions);
+	visitNode(node->plan, node->network, node->allocatedVariablesCount, node->cost, node->preconditions, node->state);
 
 	delete node;
 }
 
-void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions) {
+void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
 	++iterationCount;
 
 	// HTN: T0 ← {t ∈ T : no other task in T is constrained to precede t}
 	const Tasks& t0 = network.first;
-
 	// HTN: if T = ∅ then return P
 	if (t0.empty()) {
 		std::cout << preconditions << std::endl;
@@ -88,6 +92,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 		const Action* action = dynamic_cast<const Action*>(head);
 		if(action != 0) {
+			std::cout << "action\n";
 			// HTN: if t is a primitive task then
 
 			// TODO: HTN: A ← {(a, θ) : a is a ground instance of an operator in D, θ is a substi-
@@ -117,7 +122,6 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			for(Action::Effects::iterator it = effects.begin(); it != effects.end(); ++it) {
 				Literal& literal = *it;
 				literal.substitute(subst);
-				std::cout << literal << std::endl;
 				affectedRelations.insert(literal.atom.relation);
 				for (Scope::Indices::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
 					const Scope::Index index = *jt;
@@ -127,7 +131,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			}
 
 			// then look into preconditions for all indirectly affected variables
-			std::cout << newPreconditions << std::endl;
+			std::cout << "pre " << newPreconditions << std::endl;
 			for(CNF::iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
 				for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 					const Atom& atom = jt->atom;
@@ -141,6 +145,12 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					}
 				}
 			}
+
+			std::cout << "assigning";
+			for(AffectedVariables::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
+				std::cout << " var" << it->first - problem.scope.getSize();
+			}
+			std::cout << std::endl;
 
 			// TODO: reduce variables range
 
@@ -193,7 +203,9 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					CNF::Disjunction disjunction;
 					for(CNF::Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
 						const Literal& literal = *jt;
-						const Scope::Indices& params = literal.atom.params;
+						const Atom& atom = literal.atom;
+						const Scope::Indices& params = atom.params;
+						// TODO: ensure everywhere that precond do not contain fully grounded atoms and optimize out this loop
 						bool grounded = true;
 						for(Scope::Indices::const_iterator kt = params.begin(); kt != params.end(); ++kt) {
 							if(*kt >= problem.scope.getSize()) {
@@ -202,7 +214,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 							}
 						}
 						if(grounded) {
-							if(false) { // TODO: literal is true in the current state
+							const bool isTrue = atom.relation->check(atom, state) ^ literal.negated;
+							if(isTrue) {
 								// the literal is true => the clause is true
 								tautology = true;
 								break;
@@ -233,8 +246,11 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					Plan p(plan);
 					p.push_back(t->substitute(subst));
 
+					// apply effects
+					const State newState = effects.apply(state, subst);
+
 					// HTN: T0 ← {t ∈ T : no task in T is constrained to precede t}
-					addNode(p, assignedNetwork, assignedAllocatedVariablesCount, cost, assignedPreconditions);
+					addNode(p, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
 				}
 			}
 		}
@@ -242,6 +258,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 		// if t is a method then decompose
 		const Method* method = dynamic_cast<const Method*>(head);
 		if (method != 0) {
+			std::cout << "method\n";
 			// HTN: else
 
 			// HTN: M ← {(m, θ) : m is an instance of a method in D, θ uniﬁes {head(m), t},
@@ -257,15 +274,15 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
 				CNF newPreconditions(alternative.precondition);
-				std::cout << "alt: " << Scope::setScope(alternative.scope) << newPreconditions << std::endl;
+				//std::cout << "alt: " << Scope::setScope(alternative.scope) << newPreconditions << std::endl;
 				newPreconditions.substitute(subst);
 				// TODO: check what can be checked in these preconditions
-				std::cout << "pb:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				//std::cout << "pb:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 				newPreconditions += preconditions;
 
-				std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
-				std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);
-				std::cout << std::endl;
+				//std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
+				//std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);
+				//std::cout << std::endl;
 
 				// HTN: modify T by removing t, adding sub(m), constraining each task
 				// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
@@ -276,18 +293,20 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				// HTN: if sub(m) = ∅ then
 				// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
 				// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
-				addNode(plan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions);
+				addNode(plan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
 			}
 		}
 	}
 }
 
-void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions) {
-	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions);
+void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
+	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions, state);
 
 	cost += network.getSize();
-	std::cout << "+" << cost << " ";
-	std::cout << network;
+	std::cout << "+" << cost << std::endl;
+	std::cout << "do " << node->network << std::endl;
+	std::cout << "such that " << node->preconditions << std::endl;
+	std::cout << "knowing " << node->state << std::endl;
 
 	nodes.insert(Nodes::value_type(cost, node));
 }

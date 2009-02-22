@@ -1,11 +1,17 @@
 #include "logic.hpp"
 #include "relations.hpp"
 #include <stdexcept>
-
+#include <algorithm>
 
 Atom::Atom(const Relation* relation, const Scope::Indices& params):
 	relation(relation),
 	params(params) {
+}
+
+bool Atom::operator<(const Atom& that) const {
+	if (relation != that.relation)
+		return relation < that.relation;
+	return std::lexicographical_compare(params.begin(), params.end(), that.params.begin(), that.params.end());
 }
 
 Atom* Atom::clone() const {
