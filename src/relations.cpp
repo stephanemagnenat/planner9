@@ -9,6 +9,20 @@ Relation::Relation(const std::string& name, size_t arity):
 	arity(arity) {
 }
 
+void Relation::getRange(const State& state, VariablesRange& variablesRange) const {
+	assert(variablesRange.size() == arity);
+	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
+		const Atom& atom = *it;
+		if (atom.relation == this) {
+			for (size_t j = 0; j < atom.params.size(); ++j) {
+				Scope::Index index = atom.params[j];
+				assert(index < variablesRange[j].size());
+				variablesRange[j][index] = true;
+			}
+		}
+	}
+}
+
 ScopedProposition Relation::operator()(const char* first, ...) {
 	Scope::Names names;
 	names.push_back(first);

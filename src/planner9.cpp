@@ -112,7 +112,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 			// collect all variables and relation affected by the effects
 			typedef std::set<const Relation*> AffectedRelations;
-			typedef std::vector<bool> VariableRange;
+			typedef Relation::VariableRange VariableRange;
+			typedef Relation::VariablesRange VariablesRange;
 			typedef std::map<Scope::Index, VariableRange> AffectedVariables;
 
 			// first iterate on all effects
@@ -126,7 +127,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				for (Scope::Indices::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
 					const Scope::Index index = *jt;
 					if(index >= problem.scope.getSize())
-						affectedVariables[index].resize(problem.scope.getSize(), true);
+						affectedVariables[index].resize(problem.scope.getSize(), false);
 				}
 			}
 
@@ -140,19 +141,46 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 						for (Scope::Indices::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
 							const Scope::Index index = *kt;
 							if(index >= problem.scope.getSize())
-								affectedVariables[index].resize(problem.scope.getSize(), true);
+								affectedVariables[index].resize(problem.scope.getSize(), false);
 						}
 					}
 				}
 			}
+			
+			// filter out variables ranges using state
+			for(CNF::iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
+				for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+					const Literal& literal = *jt;
+					const Atom& atom = literal.atom;
+					VariablesRange variablesRange(atom.params.size(), VariableRange(problem.scope.getSize(), false));
+					atom.relation->getRange(state, variablesRange);
+					// invert ranges if negated
+					if (literal.negated) {
+						for (VariablesRange::iterator kt = variablesRange.begin(); kt != variablesRange.end(); ++kt) {
+							VariableRange& range = *kt;
+							~range;
+						}
+					}
+					// extend range of variables
+					for (size_t kt = 0; kt != atom.params.size(); ++kt) {
+						const Scope::Index index = atom.params[kt];
+						AffectedVariables::iterator affectedIt = affectedVariables.find(index);
+						if (affectedIt != affectedVariables.end()) {
+							VariableRange& range = affectedIt->second;
+							range |= variablesRange[kt];
+						}
+					}
+				}
+				// TODO: be more intelligent and use knowledge about CNF to prune further
+				// Do an AND between the disjunctions.
+			}
+			// TODO: reduce variables range
 
 			std::cout << "assigning";
 			for(AffectedVariables::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
-				std::cout << " var" << it->first - problem.scope.getSize();
+				std::cout << " var" << it->first - problem.scope.getSize() << " " << it->second ;
 			}
 			std::cout << std::endl;
-
-			// TODO: reduce variables range
 
 			// ground variables
 			typedef std::map<Scope::Index, Scope::Index> VariablesAssignment;
