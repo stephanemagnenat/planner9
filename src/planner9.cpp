@@ -274,26 +274,29 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
 				CNF newPreconditions(alternative.precondition);
-				//std::cout << "alt: " << Scope::setScope(alternative.scope) << newPreconditions << std::endl;
 				newPreconditions.substitute(subst);
-				// TODO: check what can be checked in these preconditions
-				//std::cout << "pb:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-				newPreconditions += preconditions;
-
-				//std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
-				//std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);
-				//std::cout << std::endl;
-
-				// HTN: modify T by removing t, adding sub(m), constraining each task
-				// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
-				TaskNetwork newNetwork = network.replace(taskIt, alternative.tasks.substitute(subst));
-
-				Cost newCost = cost + alternative.cost;
-
-				// HTN: if sub(m) = ∅ then
-				// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
-				// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
-				addNode(plan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
+				std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				if (newPreconditions.simplify(state, problem.scope.getSize()) == true) {
+					std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+					newPreconditions += preconditions;
+	
+					//std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
+					//std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);
+					//std::cout << std::endl;
+	
+					// HTN: modify T by removing t, adding sub(m), constraining each task
+					// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
+					TaskNetwork newNetwork = network.replace(taskIt, alternative.tasks.substitute(subst));
+	
+					Cost newCost = cost + alternative.cost;
+	
+					// HTN: if sub(m) = ∅ then
+					// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
+					// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
+					addNode(plan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
+				} else {
+					std::cout << "simp. pre failed" << std::endl;
+				}
 			}
 		}
 	}

@@ -9,6 +9,7 @@
 struct Relation;
 struct CNF;
 struct DNF;
+struct State;
 
 struct Proposition {
 
@@ -29,6 +30,7 @@ struct Atom: Proposition {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Scope::Indices& subst);
+	bool isCheckable(const size_t& constantsCount) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const Atom& atom);
 
@@ -119,8 +121,10 @@ struct CNF: Proposition, std::vector<Clause> {
 	CNF* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void simplify(); // TODO
 	void substitute(const Scope::Indices& subst);
+	/// Simplifies the CNF, returns true if it was successful, false if simpliciation lead to an unsatisfiable proposition.
+	/// If it returns false, cnf is untouched, otherwise it is updated with the simplified version
+	bool simplify(const State& state, const size_t constantsCount);
 
 	void operator+=(const CNF& that);
 

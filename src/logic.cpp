@@ -35,6 +35,16 @@ void Atom::substitute(const Scope::Indices& subst) {
 	params.substitute(subst);
 }
 
+bool Atom::isCheckable(const size_t& constantsCount) const {
+	bool isFoundCheckable = true;
+	for (Scope::Indices::const_iterator it = params.begin(); it != params.end(); ++it) {
+		if (*it >= constantsCount) {
+			isFoundCheckable = false;
+		}
+	}
+	return isFoundCheckable;
+}
+
 std::ostream& operator<<(std::ostream& os, const Atom& atom) {
 	if (atom.relation->name.empty() && atom.params.size() == 1)
 		return os << atom.params;
@@ -252,6 +262,35 @@ DNF CNF::dnf() const {
 		}
 	}
 	return dnf;
+}
+
+bool CNF::simplify(const State& state, const size_t constantsCount) {
+	CNF newCnf;
+	for(iterator it = begin(); it != end(); ++it) {
+		Disjunction newDisjunction;
+		bool disjunctionTrue = false;
+		for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+			const Literal& literal = *jt;
+			if (literal.atom.isCheckable(constantsCount) == false) {
+				newDisjunction.push_back(literal);
+			} else {
+				bool value = literal.atom.relation->check(literal.atom, state) ^ literal.negated;
+				if (value == true) {
+					disjunctionTrue = true;
+					break;
+				}
+			}
+		}
+		if (disjunctionTrue == false) {
+			if (newDisjunction.empty()) {
+				// disjunction is empty, which means that all literals of the disjunction were false
+				return false;
+			}
+			newCnf.push_back(newDisjunction);
+		}
+	}
+	*this = newCnf;
+	return true;
 }
 
 void CNF::substitute(const Scope::Indices& subst) {
