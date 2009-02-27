@@ -9,20 +9,6 @@ Relation::Relation(const std::string& name, size_t arity):
 	arity(arity) {
 }
 
-void Relation::getRange(const State& state, VariablesRange& variablesRange) const {
-	assert(variablesRange.size() == arity);
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		const Atom& atom = *it;
-		if (atom.relation == this) {
-			for (size_t j = 0; j < atom.params.size(); ++j) {
-				Scope::Index index = atom.params[j];
-				assert(index < variablesRange[j].size());
-				variablesRange[j][index] = true;
-			}
-		}
-	}
-}
-
 ScopedProposition Relation::operator()(const char* first, ...) {
 	Scope::Names names;
 	names.push_back(first);
@@ -52,6 +38,19 @@ void Relation::set(const Literal& literal, State& state) const {
 		state.erase(literal.atom);
 }
 
+void Relation::getRange(const State& state, VariablesRange& variablesRange) const {
+	assert(variablesRange.size() == arity);
+	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
+		const Atom& atom = *it;
+		if (atom.relation == this) {
+			for (size_t j = 0; j < atom.params.size(); ++j) {
+				Scope::Index index = atom.params[j];
+				assert(index < variablesRange[j].size());
+				variablesRange[j][index] = true;
+			}
+		}
+	}
+}
 
 EquivalentRelation::EquivalentRelation(const std::string& name):
 	Relation(name, 2) {
@@ -93,6 +92,22 @@ void EquivalentRelation::set(const Literal& literal, State& state) const {
 	}
 }
 
+void EquivalentRelation::getRange(const State& state, VariablesRange& variablesRange) const {
+	assert(variablesRange.size() == 2);
+	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
+		const Atom& atom = *it;
+		if (atom.relation == this) {
+			const size_t maxRange = std::min(variablesRange[0].size(), variablesRange[1].size());
+			assert(atom.params[0] < maxRange);
+			assert(atom.params[1] < maxRange);
+			variablesRange[0][atom.params[0]] = true;
+			variablesRange[0][atom.params[1]] = true;
+			variablesRange[1][atom.params[0]] = true;
+			variablesRange[1][atom.params[1]] = true;
+		}
+	}
+}
+
 
 EqualityRelation::EqualityRelation():
 	Relation("=", 2) {
@@ -105,6 +120,10 @@ bool EqualityRelation::check(const Atom& atom, const State& state) const {
 
 void EqualityRelation::set(const Literal& literal, State& state) const {
 	assert(false);
+}
+
+void EqualityRelation::getRange(const State& state, VariablesRange& variablesRange) const {
+	// do nothing as the state cannot have a isSame relation
 }
 
 EqualityRelation equals;

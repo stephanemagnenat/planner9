@@ -55,9 +55,8 @@ struct Relation {
 
 	virtual bool check(const Atom& atom, const State& state) const;
 	virtual void set(const Literal& literal, State& state) const;
-	
 	/// Get variables range (extends it) with the ranges provided by this relation
-	void getRange(const State& state, VariablesRange& variablesRange) const;
+	virtual void getRange(const State& state, VariablesRange& variablesRange) const;
 
 	std::string name;
 	size_t arity;
@@ -70,7 +69,7 @@ struct EquivalentRelation : public Relation {
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
-
+	void getRange(const State& state, VariablesRange& variablesRange) const;
 };
 
 struct EqualityRelation: public Relation {
@@ -79,7 +78,7 @@ struct EqualityRelation: public Relation {
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
-
+	void getRange(const State& state, VariablesRange& variablesRange) const;
 };
 extern EqualityRelation equals;
 
