@@ -55,6 +55,7 @@ struct Relation {
 
 	virtual bool check(const Atom& atom, const State& state) const;
 	virtual void set(const Literal& literal, State& state) const;
+	virtual bool hasFullRange() const { return false; }
 	/// Get variables range (extends it) with the ranges provided by this relation
 	virtual void getRange(const State& state, VariablesRange& variablesRange) const;
 
@@ -69,6 +70,7 @@ struct EquivalentRelation : public Relation {
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
+	bool hasFullRange() const { return true; }
 	void getRange(const State& state, VariablesRange& variablesRange) const;
 };
 
@@ -78,6 +80,7 @@ struct EqualityRelation: public Relation {
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
+	bool hasFullRange() const { return true; }
 	void getRange(const State& state, VariablesRange& variablesRange) const;
 };
 extern EqualityRelation equals;

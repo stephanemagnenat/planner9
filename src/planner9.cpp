@@ -160,26 +160,28 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 					const Literal& literal = *jt;
 					const Atom& atom = literal.atom;
-					VariablesRange variablesRange(atom.params.size(), VariableRange(problem.scope.getSize(), false));
-					atom.relation->getRange(state, variablesRange);
-					// invert ranges if negated
-					if (literal.negated) {
-						for (VariablesRange::iterator kt = variablesRange.begin(); kt != variablesRange.end(); ++kt) {
-							VariableRange& range = *kt;
-							~range;
+					if (atom.relation->hasFullRange() == false) {
+						VariablesRange variablesRange(atom.params.size(), VariableRange(problem.scope.getSize(), false));
+						atom.relation->getRange(state, variablesRange);
+						// invert ranges if negated
+						if (literal.negated) {
+							for (VariablesRange::iterator kt = variablesRange.begin(); kt != variablesRange.end(); ++kt) {
+								VariableRange& range = *kt;
+								~range;
+							}
 						}
-					}
-					// extend range of variables if it is to be grounded
-					for (size_t kt = 0; kt != atom.params.size(); ++kt) {
-						const Scope::Index& index = atom.params[kt];
-						// TODO: optimize this with an index check
-						if (affectedVariables.find(index) != affectedVariables.end()) {
-							AffectedVariables::iterator affectedIt = inDisjunctionRanges.find(index);
-							if (affectedIt != inDisjunctionRanges.end()) {
-								VariableRange& range = affectedIt->second;
-								range |= variablesRange[kt];
-							} else {
-								inDisjunctionRanges[index] = variablesRange[kt];
+						// extend range of variables if it is to be grounded
+						for (size_t kt = 0; kt != atom.params.size(); ++kt) {
+							const Scope::Index& index = atom.params[kt];
+							// TODO: optimize this with an index check
+							if (affectedVariables.find(index) != affectedVariables.end()) {
+								AffectedVariables::iterator affectedIt = inDisjunctionRanges.find(index);
+								if (affectedIt != inDisjunctionRanges.end()) {
+									VariableRange& range = affectedIt->second;
+									range |= variablesRange[kt];
+								} else {
+									inDisjunctionRanges[index] = variablesRange[kt];
+								}
 							}
 						}
 					}
@@ -331,7 +333,10 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				Scope::Indices subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
+				std::cout << "alt pre:  " << Scope::setScope(alternative.scope) << alternative.precondition << std::endl;
 				CNF newPreconditions(alternative.precondition);
+				std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
+				// FIXME: bug is there!
 				newPreconditions.substitute(subst);
 				std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 				if (newPreconditions.simplify(state, problem.scope.getSize()) == true) {

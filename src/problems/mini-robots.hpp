@@ -78,7 +78,7 @@ MyDomain::MyDomain():
 		area("s") &&
 		isConnected("d", "s")
 	);
-	connectArea.alternative( // ramp creation fast
+	/*connectArea.alternative( // ramp creation fast
 		area("d") &&
 		area("s") &&
 		robots("rob") &&
@@ -110,7 +110,7 @@ MyDomain::MyDomain():
 		!equals("t", "s") &&
 		!equals("t", "d"),
 		connectArea("t", "s") >> connectArea("d", "t") >> setConnected("s", "d")
-	);
+	);*/
 
 	moveWithRobots.param("o");
 	moveWithRobots.param("d");

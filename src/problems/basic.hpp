@@ -14,6 +14,7 @@
 struct MyDomain {
 
 	Relation have;
+	Relation provide;
 
 	Action pickup, drop;
 	Method swap;
@@ -25,7 +26,7 @@ struct MyDomain {
 
 // (defdomain basic (
 MyDomain::MyDomain() :
-	have("have", 1), pickup("pickup"), drop("drop"), swap("swap"), trocFor("trocFor") {
+	have("have", 1), provide("provide", 2), pickup("pickup"), drop("drop"), swap("swap"), trocFor("trocFor") {
 
 	// (:operator (!pickup ?a) () () ((have ?a)))
 	pickup.param("a");
@@ -35,7 +36,7 @@ MyDomain::MyDomain() :
 	drop.param("a");
 	drop.pre(have("a"));
 	drop.del(have("a"));
-
+	
 	/*
 	 (:method (swap ?x ?y)
 	 ((have ?x) (not (have ?y)))
@@ -49,7 +50,7 @@ MyDomain::MyDomain() :
 	swap.alternative(have("y") && !have("x"), drop("y") >> pickup("x"));
 
 	trocFor.param("x");
-	trocFor.alternative(have("y") && !have("x"), swap("x", "y"));
+	trocFor.alternative(have("y") && !have("x") && provide("p", "x"), swap("x", "y"));
 }
 
 struct MyProblem: MyDomain, Problem {
@@ -61,6 +62,7 @@ struct MyProblem: MyDomain, Problem {
 		 */
 		add(have("kiwi"));
 		add(have("lasagnes"));
+		add(provide("toto", "banjo"));
 		goal(trocFor("banjo"));
 	}
 

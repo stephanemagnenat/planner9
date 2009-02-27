@@ -93,19 +93,9 @@ void EquivalentRelation::set(const Literal& literal, State& state) const {
 }
 
 void EquivalentRelation::getRange(const State& state, VariablesRange& variablesRange) const {
-	assert(variablesRange.size() == 2);
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		const Atom& atom = *it;
-		if (atom.relation == this) {
-			const size_t maxRange = std::min(variablesRange[0].size(), variablesRange[1].size());
-			assert(atom.params[0] < maxRange);
-			assert(atom.params[1] < maxRange);
-			variablesRange[0][atom.params[0]] = true;
-			variablesRange[0][atom.params[1]] = true;
-			variablesRange[1][atom.params[0]] = true;
-			variablesRange[1][atom.params[1]] = true;
-		}
-	}
+	// an equivalent relation always have the full range, because of the reflexivity
+	// we forbid the call in the caller
+	assert(false);
 }
 
 
@@ -124,6 +114,7 @@ void EqualityRelation::set(const Literal& literal, State& state) const {
 
 void EqualityRelation::getRange(const State& state, VariablesRange& variablesRange) const {
 	// do nothing as the state cannot have a isSame relation
+	assert(false);
 }
 
 EqualityRelation equals;
