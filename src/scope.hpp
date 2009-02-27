@@ -28,6 +28,8 @@ struct Scope {
 	Names getNames(const Indices& indices) const;
 	Indices getIndices(const Names& names) const;
 	size_t getSize() const { return names.size(); }
+	
+	friend std::ostream& operator<<(std::ostream& os, const Scope& scope);
 
 	typedef std::pair<Indices, Indices> Substitutions;
 	Substitutions merge(const Scope& that);

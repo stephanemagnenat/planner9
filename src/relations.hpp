@@ -29,6 +29,13 @@ struct Relation {
 			for (size_t i = 0; i < size(); ++i)
 				(*this)[i] = ~ (*this)[i];
 		}
+		bool isEmpty() const {
+			bool anyTrueFound = false;
+			for (const_iterator it = begin(); it != end(); ++it) {
+				anyTrueFound = anyTrueFound || (*it);
+			}
+			return anyTrueFound == false;
+		}
 		friend std::ostream& operator<<(std::ostream& os, const VariableRange& range) {
 			os << "(";
 			for (const_iterator it = range.begin(); it != range.end(); ++it) {

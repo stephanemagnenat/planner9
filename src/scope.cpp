@@ -101,6 +101,15 @@ Scope::Indices Scope::getIndices(const Names& names) const {
 	return result;
 }
 
+std::ostream& operator<<(std::ostream& os, const Scope& scope) {
+	for(Scope::Names::const_iterator it = scope.names.begin(); it != scope.names.end(); ++it) {
+		if(it != scope.names.begin())
+			os << ", ";
+		os << it - scope.names.begin() << ":" << *it;
+	}
+	return os;
+}
+
 Scope::Substitutions Scope::merge(const Names& names2) {
 	Indices indices, indices2;
 	Names result;

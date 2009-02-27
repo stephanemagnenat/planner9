@@ -17,6 +17,7 @@ struct MyDomain {
 
 	Action pickup, drop;
 	Method swap;
+	Method trocFor;
 
 	MyDomain();
 
@@ -24,7 +25,7 @@ struct MyDomain {
 
 // (defdomain basic (
 MyDomain::MyDomain() :
-	have("have", 1), pickup("pickup"), drop("drop"), swap("swap") {
+	have("have", 1), pickup("pickup"), drop("drop"), swap("swap"), trocFor("trocFor") {
 
 	// (:operator (!pickup ?a) () () ((have ?a)))
 	pickup.param("a");
@@ -47,6 +48,8 @@ MyDomain::MyDomain() :
 	swap.alternative(have("x") && !have("y"), drop("x") >> pickup("y"));
 	swap.alternative(have("y") && !have("x"), drop("y") >> pickup("x"));
 
+	trocFor.param("x");
+	trocFor.alternative(have("y") && !have("x"), swap("x", "y"));
 }
 
 struct MyProblem: MyDomain, Problem {
@@ -57,7 +60,8 @@ struct MyProblem: MyDomain, Problem {
 		 ((have kiwi)) ((swap banjo kiwi)))
 		 */
 		add(have("kiwi"));
-		goal(swap("banjo", "kiwi"));
+		add(have("lasagnes"));
+		goal(trocFor("banjo"));
 	}
 
 };

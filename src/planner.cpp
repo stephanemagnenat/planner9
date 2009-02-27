@@ -1,4 +1,4 @@
-#include "problems/mini-robots.hpp"
+#include "problems/basic.hpp"
 #include "planner9.hpp"
 
 
