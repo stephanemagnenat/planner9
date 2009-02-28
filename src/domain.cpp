@@ -147,15 +147,21 @@ void Method::alternative(const ScopedProposition& precondition, const ScopedTask
 	TaskNetwork network3 = network2.substitute(substs2.first); // TODO: mutating substitute
 
 	// compute parameters indices in the alternative scope
-	// TODO: FIXME: this substitution is wrong
 	Scope::Indices subst = getVariables().substitute(substs2.second);
-	for(Scope::Index i = 0; i < scope.getSize(); ++i) {
-		if(std::find(subst.begin(), subst.end(), i) == subst.end()) {
-			subst.push_back(i);
+	Scope::Indices variables;
+	variables.resize(scope.getSize(), Scope::Index(-1));
+	Scope::Index index = 0;
+	for(; index < subst.size(); ++index) {
+		variables[subst[index]] = index;
+	}
+	for(size_t i = 0; i < variables.size(); ++i) {
+		if(variables[i] == Scope::Index(-1)) {
+			variables[i] = index;
+			++index;
 		}
 	}
 
-	Alternative alternative(scope, subst, proposition, network3, cost);
+	Alternative alternative(scope, variables, proposition, network3, cost);
 
 	// insert the alternative
 	Alternatives::iterator position = std::lower_bound(alternatives.begin(), alternatives.end(), alternative);
