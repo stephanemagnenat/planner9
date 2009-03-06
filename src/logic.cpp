@@ -299,7 +299,7 @@ Scope::OptionalIndices CNF::simplify(const State& state, const size_t variablesB
 	do {
 		wasSimplified = false;
 		
-		// check which variables can be trivially grounded
+		// DPLL Unit propagation: check which variables can be trivially grounded
 		for(iterator it = begin(); it != end(); ++it) {
 			if(it->size() == 1) {
 				const Literal& literal = it->front();

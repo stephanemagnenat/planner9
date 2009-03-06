@@ -1,5 +1,6 @@
 //#include "problems/basic.hpp"
-#include "problems/mini-robots.hpp"
+//#include "problems/mini-robots.hpp"
+#include "problems/robots.hpp"
 #include "planner9.hpp"
 
 

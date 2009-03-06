@@ -61,7 +61,7 @@ void Planner9::step() {
 	Cost cost = front->first;
 	TreeNode* node = front->second;
 
-	std::cout << "\n-" << cost << std::endl;
+	std::cout << "\n-" << node << " " << cost << std::endl;
 	std::cout << "after " << node->plan << std::endl;
 	std::cout << "do " << node->network << std::endl;
 	std::cout << "such that " << node->preconditions << std::endl;
@@ -381,7 +381,7 @@ void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allo
 	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions, state);
 
 	cost += network.getSize();
-	std::cout << "+" << cost << std::endl;
+	std::cout << "+" << node << " " << cost << std::endl;
 	std::cout << "after " << node->plan << std::endl;
 	std::cout << "do " << node->network << std::endl;
 	std::cout << "such that " << node->preconditions << std::endl;

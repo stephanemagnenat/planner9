@@ -39,43 +39,78 @@ MyDomain::MyDomain():
 	moveObject.param("d");
 	moveObject.param("s");
 	moveObject.param("r");
-	moveObject.pre(isIn("o", "s"));
+	moveObject.pre(
+		object("o") &&
+		area("d") &&
+		area("s") &&
+		robots("r") &&
+		isIn("o", "s")
+	);
 	moveObject.del(isIn("o", "s"));
 	moveObject.add(isIn("o", "d"));
 	moveObject.add(isIn("r", "d"));
 
 	setConnected.param("d");
 	setConnected.param("s");
+	setConnected.pre(
+		area("d") &&
+		area("s")
+	);
 	setConnected.add(isConnected("s", "d"));
 
 	makeRamp.param("d");
 	makeRamp.param("s");
 	makeRamp.param("rob");
 	makeRamp.param("res");
+	makeRamp.pre(
+		area("d") &&
+		area("s") &&
+		robots("rob") &&
+		resource("res")
+	);
 	makeRamp.add(isConnected("d", "s"));
 
 	connectArea.param("d");
 	connectArea.param("s");
 	connectArea.alternative( // already connected
+		area("d") &&
+		area("s") &&
 		isConnected("d", "s")
 	);
 	connectArea.alternative( // ramp creation fast
+		area("d") &&
+		area("s") &&
+		robots("rob") &&
+		area("robresa") &&
+		resource("res") &&
 		isIn("rob", "robresa") &&
 		isIn("res", "robresa") &&
 		isConnectable("s", "d") &&
-		!isConnected("s", "d"),
+		!isConnected("s", "d") &&
+		!equals("s", "d"),
 		connectArea("s", "robresa") >> makeRamp("d", "s", "rob", "res")
 	);
 	connectArea.alternative( // ramp creation
+		area("d") &&
+		area("s") &&
+		robots("rob") &&
+		area("roba") &&
+		area("resa") &&
+		resource("res") &&
 		isIn("rob", "roba") &&
 		isIn("res", "resa") &&
 		isConnectable("s", "d") &&
-		!isConnected("s", "d"),
+		!isConnected("s", "d") &&
+		!equals("s", "d"),
 		connectArea("s", "roba") >> connectArea("s", "resa") >> makeRamp("d", "s", "rob", "res")
 	);
 	connectArea.alternative( // recursion
+		area("d") &&
+		area("s") &&
+		area("t") &&
 		!equals("t", "s") &&
-		!equals("t", "d"),
+		!equals("t", "d") &&
+		!equals("s", "d"),
 		connectArea("t", "s") >> connectArea("d", "t") >> setConnected("s", "d")
 	);
 
@@ -83,13 +118,21 @@ MyDomain::MyDomain():
 	moveWithRobots.param("d");
 	moveWithRobots.param("s");
 	moveWithRobots.alternative(
+		object("o") &&
+		area("d") &&
+		area("s") &&
+		area("a") &&
+		robots("r") &&
 		isIn("r", "a"),
-		connectArea("a", "s") >> moveObject("o", "d", "s", "r")
+		connectArea("s", "a") >> moveObject("o", "d", "s", "r")
 	);
 
 	move.param("o");
 	move.param("d");
 	move.alternative(
+		object("o") &&
+		area("d") &&
+		area("s") &&
 		isIn("o", "s"),
 		connectArea("d", "s") >> moveWithRobots("o", "d", "s")
 	);
@@ -127,7 +170,7 @@ struct MyProblem: MyDomain, Problem {
 		add(isIn("r1", "a2"));
 		add(isIn("nut0", "a1"));
 		add(isIn("nut1", "a3"));
-		goal(move("o0", "a4") >> move("o1", "a0"));
+		goal(move("o0", "a1"));
 	}
 
 };
