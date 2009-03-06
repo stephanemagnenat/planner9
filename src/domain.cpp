@@ -137,17 +137,17 @@ void Method::alternative(const ScopedProposition& precondition, const ScopedTask
 
 	// rewrite precondition and decomposition with the new scope
 	proposition.substitute(substs.first);
-	TaskNetwork network2 = network.substitute(substs.second);
+	TaskNetwork network2 = network.cloneAndSubstitute(substs.second);
 
 	// merge with parameters scope of this method
 	Scope::Substitutions substs2 = scope.merge(this->scope);
 
 	// rewrite precondition and decomposition with the new scope
 	proposition.substitute(substs2.first);
-	TaskNetwork network3 = network2.substitute(substs2.first); // TODO: mutating substitute
+	TaskNetwork network3 = network2.cloneAndSubstitute(substs2.first); // TODO: mutating substitute
 
 	// compute parameters indices in the alternative scope
-	Scope::Indices subst = getVariables().substitute(substs2.second);
+	Scope::Indices subst = getVariables().cloneAndSubstitute(substs2.second);
 	Scope::Indices variables;
 	variables.resize(scope.getSize(), Scope::Index(-1));
 	Scope::Index index = 0;

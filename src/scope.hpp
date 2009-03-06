@@ -16,7 +16,7 @@ struct Scope {
 	typedef size_t Index;
 	struct Indices: std::vector<Index> {
 		void substitute(const Indices& subst);
-		Indices substitute(const Indices& subst) const;
+		Indices cloneAndSubstitute(const Indices& subst) const;
 		friend std::ostream& operator<<(std::ostream& os, const Indices& indices);
 	};
 

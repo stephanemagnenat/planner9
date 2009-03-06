@@ -12,14 +12,9 @@ void Scope::Indices::substitute(const Indices& subst) {
 	}
 }
 
-Scope::Indices Scope::Indices::substitute(const Indices& subst) const {
-	Indices result;
-	result.reserve(size());
-	for(Indices::const_iterator it = begin(); it != end(); ++it) {
-		assert(*it < subst.size());
-		Index index = subst[*it];
-		result.push_back(index);
-	}
+Scope::Indices Scope::Indices::cloneAndSubstitute(const Indices& subst) const {
+	Indices result(*this);
+	result.substitute(subst);
 	return result;
 }
 

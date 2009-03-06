@@ -11,7 +11,7 @@ void Problem::add(const ScopedProposition& scopedAtom) {
 }
 
 void Problem::goal(const ScopedTaskNetwork& goal) {
-	network = goal.getNetwork().substitute(merge(goal.getScope()));
+	network = goal.getNetwork().cloneAndSubstitute(merge(goal.getScope()));
 }
 
 Scope::Indices Problem::merge(const Scope& scope) {
@@ -23,6 +23,6 @@ Scope::Indices Problem::merge(const Scope& scope) {
 		newState.insert(atom);
 	}
 	std::swap(newState, state);
-	network.substitute(substs.first);
+	network = network.cloneAndSubstitute(substs.first);
 	return substs.second;
 }

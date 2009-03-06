@@ -19,7 +19,7 @@ struct Task {
 
 	Task(const Head* head, const Scope::Indices& params, const Tasks& successors);
 
-	Task substitute(const Scope::Indices& subst) const;
+	void substitute(const Scope::Indices& subst);
 
 	const Head* head;
 	Scope::Indices params;
@@ -34,7 +34,7 @@ struct Task {
 struct TaskNetwork {
 
 	TaskNetwork clone() const;
-	TaskNetwork substitute(const Scope::Indices& subst) const;
+	TaskNetwork cloneAndSubstitute(const Scope::Indices& subst) const;
 	TaskNetwork operator>>(const TaskNetwork& that) const;
 
 	TaskNetwork erase(Tasks::const_iterator position) const;

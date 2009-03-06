@@ -78,7 +78,7 @@ MyDomain::MyDomain():
 		area("s") &&
 		isConnected("d", "s")
 	);
-	/*connectArea.alternative( // ramp creation fast
+	connectArea.alternative( // ramp creation fast
 		area("d") &&
 		area("s") &&
 		robots("rob") &&
@@ -90,7 +90,7 @@ MyDomain::MyDomain():
 		!isConnected("s", "d"),
 		connectArea("s", "robresa") >> makeRamp("d", "s", "rob", "res")
 	);
-	connectArea.alternative( // ramp creation
+	/*connectArea.alternative( // ramp creation
 		area("d") &&
 		area("s") &&
 		robots("rob") &&
@@ -158,7 +158,7 @@ struct MyProblem: MyDomain, Problem {
 		add(isIn("o0", "a0"));
 		add(isIn("r0", "a0"));
 		add(isIn("nut0", "a0"));
-		goal(move("o0", "a0"));
+		goal(move("o0", "a1"));
 	}
 
 };

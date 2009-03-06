@@ -10,8 +10,8 @@ Task::Task(const Head* head, const Scope::Indices& params, const Tasks& successo
 	successors(successors) {
 }
 
-Task Task::substitute(const Scope::Indices& subst) const {
-	return Task(head, params.substitute(subst), successors);
+void Task::substitute(const Scope::Indices& subst) {
+	params.substitute(subst);
 }
 
 std::ostream& operator<<(std::ostream& os, const Task& task) {
@@ -24,7 +24,7 @@ Scope::Indices Task::getSubstitution(const Scope::Indices& variables, Scope::Ind
 	for(size_t i = 0; i < newVariables; ++i) {
 		subst.push_back(nextVariable + i);
 	}
-	return variables.substitute(subst);
+	return variables.cloneAndSubstitute(subst);
 }
 
 
@@ -40,11 +40,13 @@ TaskNetwork TaskNetwork::clone() const {
 struct Substitute {
 	Substitute(const Scope::Indices& subst): subst(subst) {}
 	Task* operator()(const Task* task) const {
-		return new Task(task->substitute(subst));
+		Task* clone = new Task(*task);
+		clone->substitute(subst);
+		return clone;
 	}
 	const Scope::Indices& subst;
 };
-TaskNetwork TaskNetwork::substitute(const Scope::Indices& subst) const {
+TaskNetwork TaskNetwork::cloneAndSubstitute(const Scope::Indices& subst) const {
 	return rewrite(Substitute(subst));
 }
 
@@ -232,7 +234,7 @@ ScopedTaskNetwork::ScopedTaskNetwork(const Scope& scope, const TaskNetwork& netw
 ScopedTaskNetwork ScopedTaskNetwork::operator>>(const ScopedTaskNetwork& that) const {
 	Scope scope(this->scope);
 	Scope::Substitutions substs = scope.merge(that.scope);
-	TaskNetwork head = this->network.substitute(substs.first);
-	TaskNetwork tail = that.network.substitute(substs.second);
+	TaskNetwork head = this->network.cloneAndSubstitute(substs.first);
+	TaskNetwork tail = that.network.cloneAndSubstitute(substs.second);
 	return ScopedTaskNetwork(scope, head >> tail);
 }

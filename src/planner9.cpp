@@ -62,6 +62,7 @@ void Planner9::step() {
 	TreeNode* node = front->second;
 
 	std::cout << "\n-" << cost << std::endl;
+	std::cout << "after " << node->plan << std::endl;
 	std::cout << "do " << node->network << std::endl;
 	std::cout << "such that " << node->preconditions << std::endl;
 	std::cout << "knowing " << node->state << std::endl;
@@ -299,12 +300,13 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				}
 
 				if(satisfiable) {
-					TaskNetwork assignedNetwork(newNetwork.substitute(subst));
+					TaskNetwork assignedNetwork(newNetwork.cloneAndSubstitute(subst));
 					size_t assignedAllocatedVariablesCount = newAllocatedVariablesCount - assignedVariablesCount;
 
 					// HTN: append a to P
 					Plan p(plan);
-					p.push_back(t->substitute(subst));
+					p.push_back(*t);
+					p.substitute(subst);
 
 					// apply effects
 					const State newState = effects.apply(state, subst);
@@ -333,12 +335,11 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				Scope::Indices subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
-				std::cout << "alt pre:  " << Scope::setScope(alternative.scope) << alternative.precondition << std::endl;
+				//std::cout << "alt pre:  " << Scope::setScope(alternative.scope) << alternative.precondition << std::endl;
 				CNF newPreconditions(alternative.precondition);
-				std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
-				// FIXME: bug is there!
+				//std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
 				newPreconditions.substitute(subst);
-				std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				//std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 				if (newPreconditions.simplify(state, problem.scope.getSize()) == true) {
 					std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 					newPreconditions += preconditions;
@@ -349,7 +350,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 	
 					// HTN: modify T by removing t, adding sub(m), constraining each task
 					// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
-					TaskNetwork newNetwork = network.replace(taskIt, alternative.tasks.substitute(subst));
+					TaskNetwork newNetwork = network.replace(taskIt, alternative.tasks.cloneAndSubstitute(subst));
 	
 					Cost newCost = cost + alternative.cost;
 	
@@ -370,6 +371,7 @@ void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allo
 
 	cost += network.getSize();
 	std::cout << "+" << cost << std::endl;
+	std::cout << "after " << node->plan << std::endl;
 	std::cout << "do " << node->network << std::endl;
 	std::cout << "such that " << node->preconditions << std::endl;
 	std::cout << "knowing " << node->state << std::endl;
