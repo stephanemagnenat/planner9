@@ -5,17 +5,23 @@
 
 
 void Scope::Indices::substitute(const Indices& subst) {
-	for(Indices::iterator it = begin(); it != end(); ++it) {
+	for(iterator it = begin(); it != end(); ++it) {
 		assert(*it < subst.size());
 		Index index = subst[*it];
 		*it = index;
 	}
 }
 
-Scope::Indices Scope::Indices::cloneAndSubstitute(const Indices& subst) const {
-	Indices result(*this);
-	result.substitute(subst);
-	return result;
+/// regroup all used variables just after the constants, returns the new end of variables
+Scope::Index Scope::Indices::defrag(const Index& constantsCount) {
+	Index varIndex = constantsCount;
+	for(iterator it = begin() + constantsCount; it != end(); ++it) {
+		Index index = *it;
+		if (index >= constantsCount) {
+			*it = varIndex++;
+		}
+	}
+	return varIndex;
 }
 
 std::ostream& operator<<(std::ostream& os, const Scope::Indices& indices) {
@@ -27,6 +33,15 @@ std::ostream& operator<<(std::ostream& os, const Scope::Indices& indices) {
 		os << scope.getName(index);
 	}
 	return os;
+}
+
+Scope::Indices Scope::Indices::identity(size_t size) {
+	Indices indices;
+	indices.reserve(size);
+	for(size_t i = 0; i < size; ++i) {
+		indices.push_back(Index(i));
+	}
+	return indices;
 }
 
 

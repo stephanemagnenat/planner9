@@ -148,8 +148,11 @@ struct MyProblem: MyDomain, Problem {
 
 	MyProblem() {
 		add(object("o0"));
+		add(object("o10"));
 		add(robots("r0"));
+		add(robots("r1"));
 		add(resource("nut0"));
+		add(resource("nut1"));
 		add(area("a0"));
 		add(area("a1"));
 		add(area("a2"));

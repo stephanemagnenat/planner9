@@ -38,6 +38,21 @@ void Relation::set(const Literal& literal, State& state) const {
 		state.erase(literal.atom);
 }
 
+void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
+	Scope::OptionalIndices unifier;
+	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
+		Scope::OptionalIndices newUnifier = it->unify(atom, constantsCount, subst);
+		if (newUnifier) {
+			if (unifier) {
+				return;
+			} else {
+				unifier = newUnifier;
+			}
+		}	
+	}
+	subst = unifier.get();
+}
+
 void Relation::getRange(const State& state, VariablesRange& variablesRange) const {
 	assert(variablesRange.size() == arity);
 	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
@@ -65,12 +80,8 @@ bool EquivalentRelation::check(const Atom& atom, const State& state) const {
 	} else if(p0 < p1) {
 		return Relation::check(atom, state);
 	} else {
-		Scope::Indices indices;
-		indices.reserve(2);
-		indices.push_back(p1);
-		indices.push_back(p0);
-		Atom myAtom(this, indices);
-		return Relation::check(myAtom, state);
+		Atom inverseAtom(createAtom(p1, p0));
+		return Relation::check(inverseAtom, state);
 	}
 }
 
@@ -83,12 +94,40 @@ void EquivalentRelation::set(const Literal& literal, State& state) const {
 	} else if(p0 < p1) {
 		Relation::set(literal, state);
 	} else {
-		Scope::Indices indices;
-		indices.reserve(2);
-		indices.push_back(p1);
-		indices.push_back(p0);
-		Literal myLiteral(Atom(this, indices), literal.negated);
+		Literal myLiteral(createAtom(p1, p0), literal.negated);
 		Relation::set(myLiteral, state);
+	}
+}
+
+void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
+	Scope::Index p0 = atom.params[0];
+	Scope::Index p1 = atom.params[1];
+	
+	Atom inverseAtom(createAtom(p1, p0));
+	
+	// if present in the state, then not unique
+	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
+		if (it->unify(atom, constantsCount, subst))
+			return;
+		if (it->unify(inverseAtom, constantsCount, subst))
+			return;
+	}
+	
+	// ground with self
+	if (p0 < constantsCount) {
+		if (p1 < constantsCount) {
+			return;
+		} else {
+			if (subst[p1] == p1) {
+				subst[p1] = p0;
+			}
+		}
+	} else {
+		if (p1 < constantsCount) {
+			if (subst[p0] == p0) {
+				subst[p0] = p1;
+			}
+		}
 	}
 }
 
@@ -96,6 +135,14 @@ void EquivalentRelation::getRange(const State& state, VariablesRange& variablesR
 	// an equivalent relation always have the full range, because of the reflexivity
 	// we forbid the call in the caller
 	assert(false);
+}
+
+Atom EquivalentRelation::createAtom(const Scope::Index p0, const Scope::Index p1) const {
+	Scope::Indices params;
+	params.reserve(2);
+	params.push_back(p0);
+	params.push_back(p1);
+	return Atom(this, params);
 }
 
 
@@ -110,6 +157,28 @@ bool EqualityRelation::check(const Atom& atom, const State& state) const {
 
 void EqualityRelation::set(const Literal& literal, State& state) const {
 	assert(false);
+}
+
+void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
+	// ground with self
+	Scope::Index p0 = atom.params[0];
+	Scope::Index p1 = atom.params[1];
+	
+	if (p0 < constantsCount) {
+		if (p1 < constantsCount) {
+			return;
+		} else {
+			if (subst[p1] == p1) {
+				subst[p1] = p0;
+			}
+		}
+	} else {
+		if (p1 < constantsCount) {
+			if (subst[p0] == p0) {
+				subst[p0] = p1;
+			}
+		}
+	}
 }
 
 void EqualityRelation::getRange(const State& state, VariablesRange& variablesRange) const {

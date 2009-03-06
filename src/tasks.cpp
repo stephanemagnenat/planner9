@@ -24,7 +24,9 @@ Scope::Indices Task::getSubstitution(const Scope::Indices& variables, Scope::Ind
 	for(size_t i = 0; i < newVariables; ++i) {
 		subst.push_back(nextVariable + i);
 	}
-	return variables.cloneAndSubstitute(subst);
+	Scope::Indices result(variables);
+	result.substitute(subst);
+	return result;
 }
 
 
@@ -46,8 +48,8 @@ struct Substitute {
 	}
 	const Scope::Indices& subst;
 };
-TaskNetwork TaskNetwork::cloneAndSubstitute(const Scope::Indices& subst) const {
-	return rewrite(Substitute(subst));
+void TaskNetwork::substitute(const Scope::Indices& subst) {
+	*this = rewrite(Substitute(subst));
 }
 
 struct Sequence {
@@ -234,7 +236,9 @@ ScopedTaskNetwork::ScopedTaskNetwork(const Scope& scope, const TaskNetwork& netw
 ScopedTaskNetwork ScopedTaskNetwork::operator>>(const ScopedTaskNetwork& that) const {
 	Scope scope(this->scope);
 	Scope::Substitutions substs = scope.merge(that.scope);
-	TaskNetwork head = this->network.cloneAndSubstitute(substs.first);
-	TaskNetwork tail = that.network.cloneAndSubstitute(substs.second);
+	TaskNetwork head(this->network.clone());
+	head.substitute(substs.first);
+	TaskNetwork tail(that.network.clone());
+	tail.substitute(substs.second);
 	return ScopedTaskNetwork(scope, head >> tail);
 }

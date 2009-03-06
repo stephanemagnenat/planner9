@@ -35,7 +35,33 @@ void Atom::substitute(const Scope::Indices& subst) {
 	params.substitute(subst);
 }
 
-bool Atom::isCheckable(const size_t& constantsCount) const {
+Scope::OptionalIndices Atom::unify(const Atom& atom, const size_t constantsCount, const Scope::Indices& subst) const {
+	Scope::Indices unifyingSubst(subst);
+	if (relation != atom.relation)
+		return false;
+	assert(params.size() == atom.params.size());
+	// this is the grounded version
+	for (size_t i = 0; i < params.size(); ++i) {
+		const Scope::Index& stateIndex = params[i];
+		const Scope::Index& index = atom.params[i];
+		if (index < constantsCount) {
+			if (index != stateIndex)
+				return false;
+		} else {
+			Scope::Index& substitutionIndex = unifyingSubst[index];
+			if (substitutionIndex != index) {
+				if (substitutionIndex != stateIndex)
+					return false;
+			} else {
+				substitutionIndex = stateIndex;
+			}
+		}
+	}
+	
+	return unifyingSubst;
+}
+
+bool Atom::isCheckable(const size_t constantsCount) const {
 	bool isFoundCheckable = true;
 	for (Scope::Indices::const_iterator it = params.begin(); it != params.end(); ++it) {
 		if (*it >= constantsCount) {
@@ -264,33 +290,60 @@ DNF CNF::dnf() const {
 	return dnf;
 }
 
-bool CNF::simplify(const State& state, const size_t constantsCount) {
-	CNF newCnf;
-	for(iterator it = begin(); it != end(); ++it) {
-		Disjunction newDisjunction;
-		bool disjunctionTrue = false;
-		for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
-			const Literal& literal = *jt;
-			if (literal.atom.isCheckable(constantsCount) == false) {
-				newDisjunction.push_back(literal);
-			} else {
-				bool value = literal.atom.relation->check(literal.atom, state) ^ literal.negated;
-				if (value == true) {
-					disjunctionTrue = true;
-					break;
+/// Simplifies the CNF, returns true if it was successful, false if simpliciation lead to an unsatisfiable proposition.
+/// If it returns false, cnf is untouched, otherwise it is updated with the simplified version
+
+Scope::OptionalIndices CNF::simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd) {
+	bool wasSimplified;
+	Scope::Indices subst(Scope::Indices::identity(variablesEnd));
+	do {
+		wasSimplified = false;
+		
+		// check which variables can be trivially grounded
+		for(iterator it = begin(); it != end(); ++it) {
+			if(it->size() == 1) {
+				const Literal& literal = it->front();
+				if(!literal.negated) {
+					const Atom& atom = literal.atom;
+					atom.relation->groundIfUnique(atom, state, variablesBegin, subst);
 				}
 			}
 		}
-		if (disjunctionTrue == false) {
-			if (newDisjunction.empty()) {
-				// disjunction is empty, which means that all literals of the disjunction were false
-				return false;
+		
+		// substitute CNF with grounded variables
+		substitute(subst);
+		
+		// simplify CNF
+		CNF newCnf;
+		for(iterator it = begin(); it != end(); ++it) {
+			Disjunction newDisjunction;
+			bool disjunctionTrue = false;
+			for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+				const Literal& literal = *jt;
+				if (literal.atom.isCheckable(variablesBegin) == false) {
+					newDisjunction.push_back(literal);
+				} else {
+					wasSimplified = true;
+					bool value = literal.atom.relation->check(literal.atom, state) ^ literal.negated;
+					if (value == true) {
+						disjunctionTrue = true;
+						break;
+					}
+				}
 			}
-			newCnf.push_back(newDisjunction);
+			if (disjunctionTrue == false) {
+				if (newDisjunction.empty()) {
+					// disjunction is empty, which means that all literals of the disjunction were false
+					return false;
+				}
+				newCnf.push_back(newDisjunction);
+			}
 		}
+		*this = newCnf;
 	}
-	*this = newCnf;
-	return true;
+	while (wasSimplified);
+	
+	return subst;
 }
 
 void CNF::substitute(const Scope::Indices& subst) {

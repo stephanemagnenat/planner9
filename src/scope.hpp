@@ -6,19 +6,25 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <boost/optional.hpp>
 
 
 struct Scope {
 
 	typedef std::string Name;
 	typedef std::vector<Name> Names;
-
+	
 	typedef size_t Index;
 	struct Indices: std::vector<Index> {
 		void substitute(const Indices& subst);
-		Indices cloneAndSubstitute(const Indices& subst) const;
+		Index defrag(const Index& constantsCount);
+		
 		friend std::ostream& operator<<(std::ostream& os, const Indices& indices);
+		
+		static Indices identity(size_t size);
 	};
+	
+	typedef boost::optional<Scope::Indices> OptionalIndices;
 
 	Scope();
 	Scope(const Name& name);

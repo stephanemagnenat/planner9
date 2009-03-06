@@ -129,7 +129,7 @@ Method::Method(const std::string& name) :
 
 void Method::alternative(const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition, Cost cost) {
 	CNF proposition = precondition.proposition->cnf();
-	const TaskNetwork& network = decomposition.getNetwork();
+	TaskNetwork network = decomposition.getNetwork().clone();
 
 	// merge precondition and decomposition scopes
 	Scope scope(precondition.scope);
@@ -137,17 +137,18 @@ void Method::alternative(const ScopedProposition& precondition, const ScopedTask
 
 	// rewrite precondition and decomposition with the new scope
 	proposition.substitute(substs.first);
-	TaskNetwork network2 = network.cloneAndSubstitute(substs.second);
+	network.substitute(substs.second);
 
 	// merge with parameters scope of this method
 	Scope::Substitutions substs2 = scope.merge(this->scope);
 
 	// rewrite precondition and decomposition with the new scope
 	proposition.substitute(substs2.first);
-	TaskNetwork network3 = network2.cloneAndSubstitute(substs2.first); // TODO: mutating substitute
+	network.substitute(substs2.first);
 
 	// compute parameters indices in the alternative scope
-	Scope::Indices subst = getVariables().cloneAndSubstitute(substs2.second);
+	Scope::Indices subst(getVariables());
+	subst.substitute(substs2.second);
 	Scope::Indices variables;
 	variables.resize(scope.getSize(), Scope::Index(-1));
 	Scope::Index index = 0;
@@ -161,7 +162,7 @@ void Method::alternative(const ScopedProposition& precondition, const ScopedTask
 		}
 	}
 
-	Alternative alternative(scope, variables, proposition, network3, cost);
+	Alternative alternative(scope, variables, proposition, network, cost);
 
 	// insert the alternative
 	Alternatives::iterator position = std::lower_bound(alternatives.begin(), alternatives.end(), alternative);

@@ -34,7 +34,7 @@ struct Task {
 struct TaskNetwork {
 
 	TaskNetwork clone() const;
-	TaskNetwork cloneAndSubstitute(const Scope::Indices& subst) const;
+	void substitute(const Scope::Indices& subst);
 	TaskNetwork operator>>(const TaskNetwork& that) const;
 
 	TaskNetwork erase(Tasks::const_iterator position) const;

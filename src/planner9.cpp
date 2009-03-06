@@ -300,7 +300,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				}
 
 				if(satisfiable) {
-					TaskNetwork assignedNetwork(newNetwork.cloneAndSubstitute(subst));
+					TaskNetwork assignedNetwork(newNetwork.clone());
+					assignedNetwork.substitute(subst);
 					size_t assignedAllocatedVariablesCount = newAllocatedVariablesCount - assignedVariablesCount;
 
 					// HTN: append a to P
@@ -339,25 +340,35 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				CNF newPreconditions(alternative.precondition);
 				//std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
 				newPreconditions.substitute(subst);
-				//std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-				if (newPreconditions.simplify(state, problem.scope.getSize()) == true) {
+				std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+				if (simplificationResult) {
 					std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 					newPreconditions += preconditions;
 	
 					//std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
 					//std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);
 					//std::cout << std::endl;
+					Plan newPlan(plan);
 	
 					// HTN: modify T by removing t, adding sub(m), constraining each task
 					// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
-					TaskNetwork newNetwork = network.replace(taskIt, alternative.tasks.cloneAndSubstitute(subst));
-	
+					TaskNetwork decomposition(alternative.tasks.clone());
+					decomposition.substitute(subst);
+					TaskNetwork newNetwork = network.replace(taskIt, decomposition);
+					
+					Scope::Indices simplificationSubst(simplificationResult.get());
+					newAllocatedVariablesCount = simplificationSubst.defrag(problem.scope.getSize());
+					newPreconditions.substitute(simplificationSubst);
+					newPlan.substitute(simplificationSubst);
+					newNetwork.substitute(simplificationSubst);
+					
 					Cost newCost = cost + alternative.cost;
 	
 					// HTN: if sub(m) = ∅ then
 					// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
 					// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
-					addNode(plan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
+					addNode(newPlan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
 				} else {
 					std::cout << "simp. pre failed" << std::endl;
 				}
