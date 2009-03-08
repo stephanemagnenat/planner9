@@ -102,7 +102,8 @@ Scope::Indices Action::merge(const Scope& scope) {
 }
 
 
-Method::Alternative::Alternative(const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost):
+Method::Alternative::Alternative(const std::string& name, const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost):
+	name(name),
 	scope(scope),
 	variables(variables),
 	precondition(precondition),
@@ -116,6 +117,7 @@ bool Method::Alternative::operator<(const Alternative& that) const {
 
 std::ostream& operator<<(std::ostream& os, const Method::Alternative& alternative) {
 	os << Scope::setScope(alternative.scope);
+	os << alternative.name << " ";
 	os << alternative.cost << std::endl;
 	os << alternative.precondition << std::endl;
 	os << alternative.tasks;
@@ -127,7 +129,7 @@ Method::Method(const std::string& name) :
 	Head(name) {
 }
 
-void Method::alternative(const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition, Cost cost) {
+void Method::alternative(const std::string& name, const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition, Cost cost) {
 	CNF proposition = precondition.proposition->cnf();
 	TaskNetwork network = decomposition.getNetwork().clone();
 
@@ -162,7 +164,7 @@ void Method::alternative(const ScopedProposition& precondition, const ScopedTask
 		}
 	}
 
-	Alternative alternative(scope, variables, proposition, network, cost);
+	Alternative alternative(name, scope, variables, proposition, network, cost);
 
 	// insert the alternative
 	Alternatives::iterator position = std::lower_bound(alternatives.begin(), alternatives.end(), alternative);

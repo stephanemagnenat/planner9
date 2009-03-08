@@ -73,45 +73,50 @@ MyDomain::MyDomain():
 
 	connectArea.param("d");
 	connectArea.param("s");
-	connectArea.alternative( // already connected
+	connectArea.alternative(
+		"already connected",
 		area("d") &&
 		area("s") &&
 		isConnected("d", "s")
 	);
-	connectArea.alternative( // ramp creation fast
-		area("d") &&
-		area("s") &&
-		robots("rob") &&
-		area("robresa") &&
-		resource("res") &&
-		isIn("rob", "robresa") &&
-		isIn("res", "robresa") &&
-		isConnectable("s", "d") &&
-		!isConnected("s", "d") &&
-		!equals("s", "d"),
-		connectArea("s", "robresa") >> makeRamp("d", "s", "rob", "res")
-	);
-	connectArea.alternative( // ramp creation
+	connectArea.alternative(
+		"ramp creation",
 		area("d") &&
 		area("s") &&
 		robots("rob") &&
 		area("roba") &&
-		area("resa") &&
-		resource("res") &&
 		isIn("rob", "roba") &&
+		resource("res") &&
+		area("resa") &&
+		isIn("res", "resa") &&
+		isConnected("s", "roba") &&
+		isConnected("s", "resa") &&
+		isConnectable("s", "d") &&
+		!isConnected("s", "d"),
+		makeRamp("d", "s", "rob", "res")
+	);
+	connectArea.alternative(
+		"recursion on source",
+		area("d") &&
+		area("s") &&
+		robots("rob") &&
+		area("roba") &&
+		isIn("rob", "roba") &&
+		resource("res") &&
+		area("resa") &&
 		isIn("res", "resa") &&
 		isConnectable("s", "d") &&
-		!isConnected("s", "d") &&
-		!equals("s", "d"),
-		connectArea("s", "roba") >> connectArea("s", "resa") >> makeRamp("d", "s", "rob", "res")
+		!isConnected("s", "d"),
+		connectArea("s", "roba") >> connectArea("s", "resa") >> connectArea("d", "s")
 	);
-	connectArea.alternative( // recursion
+	connectArea.alternative(
+		"recursion on target",
 		area("d") &&
 		area("s") &&
 		area("t") &&
 		!equals("t", "s") &&
 		!equals("t", "d") &&
-		!equals("s", "d"),
+		!isConnected("s", "d"),
 		connectArea("t", "s") >> connectArea("d", "t") >> setConnected("s", "d")
 	);
 
@@ -119,6 +124,7 @@ MyDomain::MyDomain():
 	moveWithRobots.param("d");
 	moveWithRobots.param("s");
 	moveWithRobots.alternative(
+		"moveWithRobots",
 		object("o") &&
 		area("d") &&
 		area("s") &&
@@ -131,6 +137,7 @@ MyDomain::MyDomain():
 	move.param("o");
 	move.param("d");
 	move.alternative(
+		"move",
 		object("o") &&
 		area("d") &&
 		area("s") &&
@@ -144,7 +151,6 @@ MyDomain::MyDomain():
 	std::cerr << connectArea << std::endl;
 	std::cerr << moveWithRobots << std::endl;
 	std::cerr << move << std::endl;
-
 }
 
 struct MyProblem: MyDomain, Problem {

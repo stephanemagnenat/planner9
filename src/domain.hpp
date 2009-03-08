@@ -75,16 +75,17 @@ struct Method: Head {
 
 	Method(const std::string& name);
 
-	void alternative(const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition = ScopedTaskNetwork(), Cost cost = 1);
+	void alternative(const std::string& name, const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition = ScopedTaskNetwork(), Cost cost = 1);
 
 	struct Alternative {
+		std::string name;
 		Scope scope;
 		Scope::Indices variables;
 		CNF precondition;
 		TaskNetwork tasks; // TODO: free network's tasks upon delete
 		Cost cost;
 
-		Alternative(const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost);
+		Alternative(const std::string& name, const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost);
 		bool operator<(const Alternative& that) const;
 		friend std::ostream& operator<<(std::ostream& os, const Alternative& alternative);
 		

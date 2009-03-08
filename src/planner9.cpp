@@ -336,6 +336,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				Scope::Indices subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
+				std::cout << "* alternative " << alternative.name << std::endl;
 				//std::cout << "alt pre:  " << Scope::setScope(alternative.scope) << alternative.precondition << std::endl;
 				CNF newPreconditions(alternative.precondition);
 				//std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
