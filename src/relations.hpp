@@ -4,6 +4,7 @@
 
 #include "logic.hpp"
 #include <cassert>
+#include <map>
 
 
 struct State;
@@ -47,7 +48,7 @@ struct Relation {
 			return os;
 		}
 	};
-	typedef std::vector<VariableRange> VariablesRange;
+	typedef std::map<Scope::Index, VariableRange> VariablesRanges;
 			
 	Relation(const std::string& name, size_t arity);
 
@@ -56,9 +57,7 @@ struct Relation {
 	virtual bool check(const Atom& atom, const State& state) const;
 	virtual void set(const Literal& literal, State& state) const;
 	virtual void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const;
-	virtual bool hasFullRange() const { return false; }
-	/// Get variables range (extends it) with the ranges provided by this relation
-	virtual void getRange(const State& state, VariablesRange& variablesRange) const;
+	virtual VariablesRanges getRange(const Atom& atom, const State& state, const size_t constantsCount) const;
 
 	std::string name;
 	size_t arity;
@@ -72,8 +71,7 @@ struct EquivalentRelation : public Relation {
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
 	void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const;
-	bool hasFullRange() const { return true; }
-	void getRange(const State& state, VariablesRange& variablesRange) const;
+	VariablesRanges getRange(const Atom& atom, const State& state, const size_t constantsCount) const;
 	
 protected:
 	Atom createAtom(const Scope::Index p0, const Scope::Index p1) const;
@@ -86,8 +84,7 @@ struct EqualityRelation: public Relation {
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
 	void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const;
-	bool hasFullRange() const { return true; }
-	void getRange(const State& state, VariablesRange& variablesRange) const;
+	VariablesRanges getRange(const Atom& atom, const State& state, const size_t constantsCount) const;
 };
 extern EqualityRelation equals;
 

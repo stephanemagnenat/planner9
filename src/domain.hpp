@@ -55,6 +55,7 @@ struct Action: Head { // TODO: allow free local variables, like in an alternativ
 
 	struct Effects:public std::vector<Literal>  {
 		State apply(const State& state, const Scope::Indices subst) const;
+		void substitute(const Scope::Indices& subst);
 	};
 
 //	std::vector<std::pair<GroundInstance, Substitution> > groundings();

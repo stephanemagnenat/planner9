@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <set>
 #include <vector>
 #include <boost/optional.hpp>
 
@@ -15,16 +16,20 @@ struct Scope {
 	typedef std::vector<Name> Names;
 	
 	typedef size_t Index;
+	typedef std::set<Index> IndexSet;
+
 	struct Indices: std::vector<Index> {
 		void substitute(const Indices& subst);
 		Index defrag(const Index& constantsCount);
+		// TODO: dead code elimination
+		bool containsAny(const IndexSet& indexSet);
 		
 		friend std::ostream& operator<<(std::ostream& os, const Indices& indices);
 		
 		static Indices identity(size_t size);
 	};
 	
-	typedef boost::optional<Scope::Indices> OptionalIndices;
+	typedef boost::optional<Indices> OptionalIndices;
 
 	Scope();
 	Scope(const Name& name);

@@ -53,18 +53,30 @@ void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t
 	subst = unifier.get();
 }
 
-void Relation::getRange(const State& state, VariablesRange& variablesRange) const {
-	assert(variablesRange.size() == arity);
+/// Get variables range (extends it) with the ranges provided by this relation
+Relation::VariablesRanges Relation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
+	VariablesRanges atomRanges;
+
+	for (Scope::Indices::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it) {
+		const Scope::Index index = *it;
+		if(index >= constantsCount)
+			atomRanges[index] = VariableRange(constantsCount, false);
+	}
+
 	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		const Atom& atom = *it;
-		if (atom.relation == this) {
-			for (size_t j = 0; j < atom.params.size(); ++j) {
-				Scope::Index index = atom.params[j];
-				assert(index < variablesRange[j].size());
-				variablesRange[j][index] = true;
+		const Atom& stateAtom = *it;
+		if (stateAtom.relation == this) {
+			assert(arity == stateAtom.params.size());
+			for (size_t j = 0; j < arity; ++j) {
+				Scope::Index constantIndex = stateAtom.params[j];
+				Scope::Index variableIndex = atom.params[j];
+				assert(constantIndex < constantsCount);
+				if(variableIndex >= constantsCount)
+					atomRanges[variableIndex][constantIndex] = true;
 			}
 		}
 	}
+	return atomRanges;
 }
 
 EquivalentRelation::EquivalentRelation(const std::string& name):
@@ -73,8 +85,8 @@ EquivalentRelation::EquivalentRelation(const std::string& name):
 
 bool EquivalentRelation::check(const Atom& atom, const State& state) const {
 	assert(atom.params.size() == 2);
-	Scope::Index p0 = atom.params[0];
-	Scope::Index p1 = atom.params[1];
+	const Scope::Index p0 = atom.params[0];
+	const Scope::Index p1 = atom.params[1];
 	if(p0 == p1) {
 		return true;
 	} else if(p0 < p1) {
@@ -87,8 +99,8 @@ bool EquivalentRelation::check(const Atom& atom, const State& state) const {
 
 void EquivalentRelation::set(const Literal& literal, State& state) const {
 	assert(literal.atom.params.size() == 2);
-	Scope::Index p0 = literal.atom.params[0];
-	Scope::Index p1 = literal.atom.params[1];
+	const Scope::Index p0 = literal.atom.params[0];
+	const Scope::Index p1 = literal.atom.params[1];
 	if(p0 == p1) {
 		assert(false);
 	} else if(p0 < p1) {
@@ -100,8 +112,8 @@ void EquivalentRelation::set(const Literal& literal, State& state) const {
 }
 
 void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
-	Scope::Index p0 = atom.params[0];
-	Scope::Index p1 = atom.params[1];
+	const Scope::Index p0 = atom.params[0];
+	const Scope::Index p1 = atom.params[1];
 	
 	Atom inverseAtom(createAtom(p1, p0));
 	
@@ -131,10 +143,33 @@ void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, co
 	}
 }
 
-void EquivalentRelation::getRange(const State& state, VariablesRange& variablesRange) const {
-	// an equivalent relation always have the full range, because of the reflexivity
-	// we forbid the call in the caller
-	assert(false);
+Relation::VariablesRanges EquivalentRelation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
+	const Scope::Index p0 = atom.params[0];
+	const Scope::Index p1 = atom.params[1];
+	VariablesRanges atomRanges;
+
+	if (p0 < constantsCount) {
+		if (p1 < constantsCount) {
+			// we should not be called as simplify() has removed the atom already
+			assert(false);
+		} else {
+			atomRanges = Relation::getRange(atom, state, constantsCount);
+			const Atom inverseAtom(createAtom(p1, p0));
+			atomRanges[p1] |= Relation::getRange(atom, state, constantsCount)[p1];
+			atomRanges[p1][p0] = true;
+		}
+	} else {
+		if (p1 < constantsCount) {
+			atomRanges = Relation::getRange(atom, state, constantsCount);
+			const Atom inverseAtom(createAtom(p1, p0));
+			atomRanges[p0] |= Relation::getRange(atom, state, constantsCount)[p0];
+			atomRanges[p0][p1] = true;
+		} else {
+			// do nothing, only variables
+		}
+	}
+
+	return atomRanges;
 }
 
 Atom EquivalentRelation::createAtom(const Scope::Index p0, const Scope::Index p1) const {
@@ -161,8 +196,8 @@ void EqualityRelation::set(const Literal& literal, State& state) const {
 
 void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
 	// ground with self
-	Scope::Index p0 = atom.params[0];
-	Scope::Index p1 = atom.params[1];
+	const Scope::Index p0 = atom.params[0];
+	const Scope::Index p1 = atom.params[1];
 	
 	if (p0 < constantsCount) {
 		if (p1 < constantsCount) {
@@ -181,9 +216,31 @@ void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, cons
 	}
 }
 
-void EqualityRelation::getRange(const State& state, VariablesRange& variablesRange) const {
-	// do nothing as the state cannot have a isSame relation
-	assert(false);
+Relation::VariablesRanges EqualityRelation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
+	const Scope::Index p0 = atom.params[0];
+	const Scope::Index p1 = atom.params[1];
+	VariablesRanges atomRanges;
+
+	if (p0 < constantsCount) {
+		if (p1 < constantsCount) {
+			// we should not be called as simplify() has removed the atom already
+			assert(false);
+		} else {
+			VariableRange range(constantsCount, false);
+			range[p0] = true;
+			atomRanges[p1] = range;
+		}
+	} else {
+		if (p1 < constantsCount) {
+			VariableRange range(constantsCount, false);
+			range[p1] = true;
+			atomRanges[p0] = range;
+		} else {
+			// do nothing, only variables
+		}
+	}
+
+	return atomRanges;
 }
 
 EqualityRelation equals;

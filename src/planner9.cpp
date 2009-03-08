@@ -111,6 +111,233 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			newPreconditions.substitute(subst);
 			newPreconditions += preconditions;
 
+			std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+			Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+			if (simplificationResult) {
+				std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+
+				Action::Effects effects(action->getEffects());
+				effects.substitute(subst);
+
+				Plan newPlan(plan);
+
+				Scope::Indices simplificationSubst(simplificationResult.get());
+				newAllocatedVariablesCount = simplificationSubst.defrag(problem.scope.getSize());
+				newPreconditions.substitute(simplificationSubst);
+				newPlan.substitute(simplificationSubst);		//TODO: use me
+				newNetwork.substitute(simplificationSubst);		//TODO: use me
+				effects.substitute(simplificationSubst);
+
+				// discover which variables must be grounded
+
+				// collect all variables and relation affected by the effects
+				Scope::IndexSet affectedVariables;
+				{
+					typedef std::set<const Relation*> AffectedRelations;
+					AffectedRelations affectedRelations;
+
+					// first iterate on all effects
+					for(Action::Effects::iterator it = effects.begin(); it != effects.end(); ++it) {
+						Literal& literal = *it;
+						affectedRelations.insert(literal.atom.relation);
+						for (Scope::Indices::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
+							const Scope::Index index = *jt;
+							if(index >= problem.scope.getSize())
+								affectedVariables.insert(index);
+						}
+					}
+
+					// then look into preconditions for all indirectly affected variables
+					for(CNF::iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
+						for(Clause::iterator jt = it->begin(); jt != it->end(); ++jt) {
+							const Atom& atom = jt->atom;
+							if (affectedRelations.find(atom.relation) != affectedRelations.end()) {
+								// the relation of this atom is affected, all its variables must be grounded
+								for (Scope::Indices::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
+									const Scope::Index index = *kt;
+									if(index >= problem.scope.getSize())
+										affectedVariables.insert(index);
+								}
+							}
+						}
+					}
+				}
+
+				// create a list of affected variables along with their ranges, set their range to maximum
+				typedef Relation::VariableRange VariableRange;
+				typedef Relation::VariablesRanges VariablesRanges;
+				VariablesRanges variablesRanges;
+				for (Scope::IndexSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
+					const Scope::Index index = *it;
+					variablesRanges[index] = VariableRange(problem.scope.getSize(), true);
+				}
+
+				// filter out variables ranges using state
+				for(CNF::iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
+					VariablesRanges clauseRanges;
+					for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+						const Literal& literal = *jt;
+						const Atom& atom = literal.atom;
+						VariablesRanges atomRanges(atom.relation->getRange(atom, state, problem.scope.getSize()));
+						// extend range of variables if it is to be grounded
+						for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
+							const Scope::Index& index = kt->first;
+							// TODO: optimize this with an index check
+							if (affectedVariables.find(index) != affectedVariables.end()) {
+								VariableRange& paramRange = kt->second;
+								if(literal.negated)
+									~paramRange;
+								VariablesRanges::iterator clauseRangesIt = clauseRanges.find(index);
+								if (clauseRangesIt != clauseRanges.end()) {
+									VariableRange& range = clauseRangesIt->second;
+									range |= paramRange;
+								} else {
+									clauseRanges[index] = paramRange;
+								}
+							}
+						}
+					}
+					//for (AffectedVariables::iterator varIt = inDisjunctionRanges.begin(); varIt != inDisjunctionRanges.end(); ++varIt) {
+					//	std::cerr << varIt->first << ": " << varIt->second << std::endl;
+					//}
+
+					// filtered global ranges with ranges of this disjunction
+					for (VariablesRanges::const_iterator jt = clauseRanges.begin(); jt != clauseRanges.end(); ++jt) {
+						VariablesRanges::iterator variablesRangesIt = variablesRanges.find(jt->first);
+						if (variablesRangesIt != variablesRanges.end()) {
+							VariableRange& range = variablesRangesIt->second;
+							range &= jt->second;
+						} else {
+							assert(false);
+							variablesRanges[jt->first] = jt->second;
+						}
+					}
+				}
+
+				std::cerr << "constants " << problem.scope << std::endl;
+
+				std::cerr << "assigning";
+				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
+					std::cerr << " var" << it->first - problem.scope.getSize() << " " << it->second ;
+				}
+				std::cerr << std::endl;
+
+				// if any of the variable has no domain, return
+				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
+					if (it->second.isEmpty()) {
+						return;
+					}
+				}
+
+				// TODO: from here, rewrite using DPLL
+
+				// ground variables
+				typedef std::map<Scope::Index, Scope::Index> VariablesAssignment;
+				typedef std::vector<VariablesAssignment> VariablesAssignments;
+				VariablesAssignments allAssignments;
+				allAssignments.push_back(VariablesAssignment());
+				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
+					VariablesAssignments newAssignments;
+					const VariablesRanges::value_type& variable = *it;
+					const VariableRange& range = variable.second;
+					for (VariableRange::const_iterator kt = range.begin(); kt != range.end(); ++kt)	{
+						if(*kt) {
+							for (VariablesAssignments::const_iterator jt = allAssignments.begin(); jt != allAssignments.end(); ++jt) {
+								VariablesAssignment assignment = *jt;
+								assignment[variable.first] = kt - range.begin();
+								newAssignments.push_back(assignment);
+							}
+						}
+					}
+					std::swap(allAssignments, newAssignments);
+				}
+
+				// iterate on all ground assignments and create corresponding nodes
+				for(VariablesAssignments::const_iterator it = allAssignments.begin(); it != allAssignments.end(); ++it) {
+					Scope::Indices subst;
+					VariablesAssignment::const_iterator jt = it->begin();
+					size_t assignedVariablesCount = 0;
+					for(Scope::Index i = 0; i < newAllocatedVariablesCount; ++i) {
+						if (jt == it->end() || i != jt->first) {
+							subst.push_back(i - assignedVariablesCount);
+						} else {
+							subst.push_back(jt->second);
+							++jt;
+							++assignedVariablesCount;
+						}
+					}
+
+					// HTN: modify T by removing t and applying θ
+
+					CNF assignedPreconditions(newPreconditions);
+					assignedPreconditions.substitute(subst);
+
+					// Check what can be checked in these preconditions
+					CNF remainingPreconditions;
+					bool satisfiable = true;
+					for(CNF::const_iterator it = assignedPreconditions.begin(); it != assignedPreconditions.end(); ++it) {
+						bool tautology = false;
+						CNF::Disjunction disjunction;
+						for(CNF::Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
+							const Literal& literal = *jt;
+							const Atom& atom = literal.atom;
+							const Scope::Indices& params = atom.params;
+							// TODO: ensure everywhere that precond do not contain fully grounded atoms and optimize out this loop
+							bool grounded = true;
+							for(Scope::Indices::const_iterator kt = params.begin(); kt != params.end(); ++kt) {
+								if(*kt >= problem.scope.getSize()) {
+									grounded = false;
+									break;
+								}
+							}
+							if(grounded) {
+								const bool isTrue = atom.relation->check(atom, state) ^ literal.negated;
+								if(isTrue) {
+									// the literal is true => the clause is true
+									tautology = true;
+									break;
+								} else {
+									// the literal is false => skip it
+								}
+							} else {
+								// there are still free variables in this literal
+								disjunction.push_back(literal);
+							}
+						}
+						if(!tautology) {
+							if(!disjunction.empty()) {
+								remainingPreconditions.push_back(disjunction);
+							} else {
+								// the clause is unsatisfiable => the conjunction is unsatisfiable
+								satisfiable = false;
+								break;
+							}
+						}
+					}
+
+					if(satisfiable) {
+						TaskNetwork assignedNetwork(newNetwork.clone());
+						assignedNetwork.substitute(subst);
+						size_t assignedAllocatedVariablesCount = newAllocatedVariablesCount - assignedVariablesCount;
+
+						// HTN: append a to P
+						Plan p(newPlan);
+						p.push_back(*t);
+						p.substitute(subst);
+
+						// apply effects
+						const State newState = effects.apply(state, subst);
+
+						// HTN: T0 ← {t ∈ T : no task in T is constrained to precede t}
+						addNode(p, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
+					}
+				}
+
+			} else {
+				std::cout << "simp. pre failed" << std::endl;
+			}
+
+			/*
 			// collect all variables and relation affected by the effects
 			typedef std::set<const Relation*> AffectedRelations;
 			typedef Relation::VariableRange VariableRange;
@@ -187,9 +414,9 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 						}
 					}
 				}
-				/*for (AffectedVariables::iterator varIt = inDisjunctionRanges.begin(); varIt != inDisjunctionRanges.end(); ++varIt) {
-					std::cerr << varIt->first << ": " << varIt->second << std::endl;
-				}*/
+				//for (AffectedVariables::iterator varIt = inDisjunctionRanges.begin(); varIt != inDisjunctionRanges.end(); ++varIt) {
+				//	std::cerr << varIt->first << ": " << varIt->second << std::endl;
+				//}
 				
 				// filtered global ranges with ranges of this disjunction
 				for (AffectedVariables::iterator varIt = inDisjunctionRanges.begin(); varIt != inDisjunctionRanges.end(); ++varIt) {
@@ -315,7 +542,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					// HTN: T0 ← {t ∈ T : no task in T is constrained to precede t}
 					addNode(p, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
 				}
-			}
+			}*/
 		}
 
 		// if t is a method then decompose
@@ -341,11 +568,11 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				CNF newPreconditions(alternative.precondition);
 				//std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
 				newPreconditions.substitute(subst);
+				newPreconditions += preconditions;
 				std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 				Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 				if (simplificationResult) {
 					std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-					newPreconditions += preconditions;
 	
 					//std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
 					//std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);

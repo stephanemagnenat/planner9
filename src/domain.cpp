@@ -73,6 +73,13 @@ State Action::Effects::apply(const State& state, const Scope::Indices subst) con
 	return newState;
 }
 
+void Action::Effects::substitute(const Scope::Indices& subst) {
+	for (iterator it = begin(); it != end(); ++it) {
+		Literal& literal = *it;
+		literal.substitute(subst);
+	}
+}
+
 void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
 	const Atom* originalAtom = dynamic_cast<const Atom*>(scopedAtom.proposition.get());
 	assert(originalAtom != 0);

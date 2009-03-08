@@ -24,6 +24,15 @@ Scope::Index Scope::Indices::defrag(const Index& constantsCount) {
 	return varIndex;
 }
 
+bool Scope::Indices::containsAny(const IndexSet& indexSet) {
+	for (const_iterator it = begin(); it != end(); ++it) {
+		const Scope::Index index = *it;
+		if (indexSet.find(index) != indexSet.end())
+			return true;
+	}
+	return false;
+}
+
 std::ostream& operator<<(std::ostream& os, const Scope::Indices& indices) {
 	const Scope& scope = Scope::getScope(os);
 	for(Scope::Indices::const_iterator it = indices.begin(); it != indices.end(); ++it) {
