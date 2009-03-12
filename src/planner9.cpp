@@ -45,26 +45,28 @@ std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
 
 
 Planner9::Planner9(const Problem& problem, std::ostream* debugStream):
-	debugStream(debugStream),
 	problem(problem),
-	iterationCount(0) {
+	iterationCount(0),
+	debugStream(debugStream),
+	workingThreadCount(0) {
 }
 
 // HTN: procedure SHOP2(s, T, D)
-boost::optional<Plan> Planner9::plan() {
+boost::optional<Plan> Planner9::plan(size_t threadsCount) {
 	// HTN: P = the empty plan
 	addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
+	
+	boost::mutex::scoped_lock lock(mutex);
 
-	/* TODO: prevent infinite recursion with either:
-	 * - maximum weight
-	 * - maximum nodes
-	 * - maximum depth
-	 * - maximum time
-	 */
-	// HTN: loop
-	while(!nodes.empty() && plans.empty()) {
-		step();
+	boost::thread_group threads;
+	for (size_t i = 0; i < threadsCount; ++i) {
+		threads.create_thread(boost::ref(*this));
+		workingThreadCount++;
 	}
+	
+	lock.unlock();
+	threads.join_all();
+	
 	std::cout << "Terminated after " << iterationCount << " iterations" << std::endl;
 
 	if(plans.empty())
@@ -73,19 +75,41 @@ boost::optional<Plan> Planner9::plan() {
 		return plans.front();
 }
 
-void Planner9::step() {
+bool Planner9::step() {
+	boost::mutex::scoped_lock lock(mutex);
+	workingThreadCount--;
+	
+	do {
+		if (!plans.empty())
+			return false;
+		if (nodes.empty()) {
+			if(workingThreadCount == 0)
+				return false;
+			else
+				condition.wait(lock);
+		}
+	} while (nodes.empty() || !plans.empty());
+	
 	Nodes::iterator front = nodes.begin();
-	Cost cost = front->first;
 	TreeNode* node = front->second;
+	nodes.erase(front);
+	
+	workingThreadCount++;
+	lock.unlock();
 
 	if (debugStream)
 		*debugStream << "- " << *node << std::endl;
-
-	nodes.erase(front);
-
+	
 	visitNode(node->plan, node->network, node->allocatedVariablesCount, node->cost, node->preconditions, node->state);
 
+	
 	delete node;
+	return true;
+}
+
+void Planner9::operator()() {
+	// HTN: loop
+	while (step()) {}
 }
 
 void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
@@ -369,9 +393,13 @@ void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allo
 	if (debugStream)
 		*debugStream << "+ " << *node << std::endl;
 
+	boost::mutex::scoped_lock lock(mutex);
 	nodes.insert(Nodes::value_type(cost, node));
+	condition.notify_one();
 }
 
 void Planner9::success(const Plan& plan) {
+	boost::mutex::scoped_lock lock(mutex);
 	plans.push_back(plan);
+	condition.notify_all();
 }

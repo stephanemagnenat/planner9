@@ -5,6 +5,7 @@ QT -= gui
 TARGET = planner9
 CONFIG += console
 CONFIG -= app_bundle
+LIBS += -lboost_thread
 TEMPLATE = app
 SOURCES += src/domain.cpp \
     src/logic.cpp \

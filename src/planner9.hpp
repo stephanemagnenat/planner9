@@ -4,6 +4,7 @@
 
 #include "plan.hpp"
 #include <boost/optional.hpp>
+#include <boost/thread.hpp>
 #include <set>
 #include <map>
 #include <iostream>
@@ -19,12 +20,12 @@ struct TreeNode;
 struct Planner9 {
 
 	Planner9(const Problem& problem, std::ostream* debugStream = 0);
-
-	boost::optional<Plan> plan();
-
+	
+	boost::optional<Plan> plan(size_t threadsCount = 1);
+	void operator()();
+	
 private:
-
-	void step();
+	bool step();
 	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	void addNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	void success(const Plan& plan);
@@ -37,6 +38,9 @@ private:
 	Plans plans;
 	size_t iterationCount;
 	std::ostream *debugStream;
+	size_t workingThreadCount;
+	boost::mutex mutex;
+	boost::condition condition;
 };
 
 

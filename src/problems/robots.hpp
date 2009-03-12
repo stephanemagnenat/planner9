@@ -145,6 +145,17 @@ MyDomain::MyDomain():
 	);
 }
 
+/*
+  to cite:
+  Efﬁciently handling temporal knowledge in an HTN planner∗
+  A planning architecture for mobile robotics
+  Planning for a Mobile Robot to Attend a Conference
+  Bringing Users and Planning Technology Together. Experiences in SIADEX
+  SHOP2: An HTN Planning System: http://www.jair.org/media/1141/live-1141-2152-jair.pdf
+	  
+	 problems for ICP3/ICAPS2002 http://planning.cis.strath.ac.uk/competition/
+ */
+
 struct MyProblem: MyDomain, Problem {
 
 	MyProblem() {
@@ -159,6 +170,8 @@ struct MyProblem: MyDomain, Problem {
 		add(area("a2"));
 		add(area("a3"));
 		add(area("a4"));
+		add(area("a5"));
+		add(isConnectable("a0", "a5"));
 		add(isConnectable("a0", "a1"));
 		add(isConnectable("a1", "a2"));
 		add(isConnectable("a2", "a3"));

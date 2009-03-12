@@ -21,11 +21,20 @@ int main(int argc, char* argv[]) {
 	std::cout << "initial network: " << problem.network << std::endl;
 
 	std::ostream* dump(0);
-	if (argc > 1)
+	size_t threadsCount = 1;
+	if (argc > 1) {
+		threadsCount = atol(argv[1]);
+		if (threadsCount == 0) {
+			std::cerr << "Invalid number of thread" << std::endl;
+			threadsCount = 1;
+		}
+	}
+	if (argc > 2) {
 		dump = &std::cout;
+	}
 	Planner9 planner(problem, dump);
 
-	boost::optional<Plan> plan = planner.plan();
+	boost::optional<Plan> plan = planner.plan(threadsCount);
 	if(plan) {
 		std::cout << "plan: " << *plan << std::endl;
 	} else {
