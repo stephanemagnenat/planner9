@@ -50,7 +50,8 @@ void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t
 			}
 		}	
 	}
-	subst = unifier.get();
+	if(unifier)
+		subst = unifier.get();
 }
 
 /// Get variables range (extends it) with the ranges provided by this relation
