@@ -6,6 +6,7 @@
 #include <boost/optional.hpp>
 #include <set>
 #include <map>
+#include <iostream>
 
 
 struct Problem;
@@ -15,10 +16,9 @@ struct CNF;
 typedef int Cost;
 struct TreeNode;
 
-
 struct Planner9 {
 
-	Planner9(const Problem& problem);
+	Planner9(const Problem& problem, std::ostream* debugStream = 0);
 
 	boost::optional<Plan> plan();
 
@@ -36,7 +36,7 @@ private:
 	Nodes nodes;
 	Plans plans;
 	size_t iterationCount;
-
+	std::ostream *debugStream;
 };
 
 

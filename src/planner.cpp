@@ -20,7 +20,10 @@ int main(int argc, char* argv[]) {
 	std::cout << "initial state: "<< problem.state << std::endl;
 	std::cout << "initial network: " << problem.network << std::endl;
 
-	Planner9 planner(problem);
+	std::ostream* dump(0);
+	if (argc > 1)
+		dump = &std::cout;
+	Planner9 planner(problem, dump);
 
 	boost::optional<Plan> plan = planner.plan();
 	if(plan) {

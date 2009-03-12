@@ -6,10 +6,17 @@
 #include <iostream>
 #include <set>
 
+// debug housekeeping
+#ifdef NDEBUG
+#undef DEBUG
+#endif
+
 
 // nodes in our search tree
 struct TreeNode {
 	TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
+	friend std::ostream& operator<<(std::ostream& os, const TreeNode& node);
+	
 	const Plan plan;
 	const TaskNetwork network; // T
 	const size_t allocatedVariablesCount;
@@ -27,8 +34,18 @@ TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocate
 	state(state) {
 }
 
+std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
+	os << "node " << (&node) << " costs " << node.cost << std::endl;
+	os << "after " << node.plan << std::endl;
+	os << "do " << node.network << std::endl;
+	os << "such that " << node.preconditions << std::endl;
+	os << "knowing " << node.state << std::endl;
+	return os;
+}
 
-Planner9::Planner9(const Problem& problem):
+
+Planner9::Planner9(const Problem& problem, std::ostream* debugStream):
+	debugStream(debugStream),
 	problem(problem),
 	iterationCount(0) {
 }
@@ -61,11 +78,8 @@ void Planner9::step() {
 	Cost cost = front->first;
 	TreeNode* node = front->second;
 
-	std::cout << "\n-" << node << " " << cost << std::endl;
-	std::cout << "after " << node->plan << std::endl;
-	std::cout << "do " << node->network << std::endl;
-	std::cout << "such that " << node->preconditions << std::endl;
-	std::cout << "knowing " << node->state << std::endl;
+	if (debugStream)
+		*debugStream << "- " << *node << std::endl;
 
 	nodes.erase(front);
 
@@ -81,7 +95,9 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 	const Tasks& t0 = network.first;
 	// HTN: if T = ∅ then return P
 	if (t0.empty()) {
-		std::cout << preconditions << std::endl;
+		assert(preconditions.empty());
+		// TODO: implement
+		if (debugStream) *debugStream << preconditions << std::endl;
 		success(plan);
 	}
 
@@ -93,7 +109,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 		const Action* action = dynamic_cast<const Action*>(head);
 		if(action != 0) {
-			std::cout << "action\n";
+			if (debugStream)
+				*debugStream << "action" << std::endl;
 			// HTN: if t is a primitive task then
 
 			// TODO: HTN: A ← {(a, θ) : a is a ground instance of an operator in D, θ is a substi-
@@ -111,10 +128,10 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			newPreconditions.substitute(subst);
 			newPreconditions += preconditions;
 
-			std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+			if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 			Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 			if (simplificationResult) {
-				std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 
 				Action::Effects effects(action->getEffects());
 				effects.substitute(subst);
@@ -197,9 +214,6 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 							}
 						}
 					}
-						//for (AffectedVariables::iterator varIt = inDisjunctionRanges.begin(); varIt != inDisjunctionRanges.end(); ++varIt) {
-					//	std::cerr << varIt->first << ": " << varIt->second << std::endl;
-					//}
 
 					// filtered global ranges with ranges of this disjunction
 					for (VariablesRanges::const_iterator jt = clauseRanges.begin(); jt != clauseRanges.end(); ++jt) {
@@ -214,13 +228,14 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					}
 				}
 
-				std::cerr << "constants " << problem.scope << std::endl;
-
-				std::cerr << "assigning";
-				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
-					std::cerr << " var" << it->first - problem.scope.getSize() << " " << it->second ;
+				if (debugStream) {
+					*debugStream << "constants " << problem.scope << std::endl;
+					*debugStream << "assigning";
+					for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
+						*debugStream << " var" << it->first - problem.scope.getSize() << " " << it->second ;
+					}
+					*debugStream << std::endl;
 				}
-				std::cerr << std::endl;
 
 				// if any of the variable has no domain, return
 				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
@@ -286,14 +301,14 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					addNode(assignedPlan, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
 				}
 			} else {
-				std::cout << "simp. pre failed" << std::endl;
+				if (debugStream) *debugStream << "simp. pre failed" << std::endl;
 			}
 		}
 
 		// if t is a method then decompose
 		const Method* method = dynamic_cast<const Method*>(head);
 		if (method != 0) {
-			std::cout << "method\n";
+			if (debugStream) *debugStream << "method" << std::endl;
 			// HTN: else
 
 			// HTN: M ← {(m, θ) : m is an instance of a method in D, θ uniﬁes {head(m), t},
@@ -308,20 +323,15 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				Scope::Indices subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
-				std::cout << "* alternative " << alternative.name << std::endl;
-				//std::cout << "alt pre:  " << Scope::setScope(alternative.scope) << alternative.precondition << std::endl;
+				if (debugStream) *debugStream << "* alternative " << alternative.name << std::endl;
 				CNF newPreconditions(alternative.precondition);
-				//std::cout << "subst: " << Scope::setScope(problem.scope) << subst << std::endl;
 				newPreconditions.substitute(subst);
 				newPreconditions += preconditions;
-				std::cout << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 				Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 				if (simplificationResult) {
-					std::cout << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+					if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 	
-					//std::cout << "alt: " << Scope::setScope(alternative.scope) << alternative.tasks;
-					//std::cout << "pb:  " << Scope::setScope(problem.scope) << alternative.tasks.substitute(subst);
-					//std::cout << std::endl;
 					Plan newPlan(plan);
 	
 					// HTN: modify T by removing t, adding sub(m), constraining each task
@@ -343,7 +353,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
 					addNode(newPlan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
 				} else {
-					std::cout << "simp. pre failed" << std::endl;
+					if (debugStream)
+						*debugStream << "simp. pre failed" << std::endl;
 				}
 			}
 		}
@@ -354,11 +365,9 @@ void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allo
 	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions, state);
 
 	cost += network.getSize();
-	std::cout << "+" << node << " " << cost << std::endl;
-	std::cout << "after " << node->plan << std::endl;
-	std::cout << "do " << node->network << std::endl;
-	std::cout << "such that " << node->preconditions << std::endl;
-	std::cout << "knowing " << node->state << std::endl;
+	
+	if (debugStream)
+		*debugStream << "+ " << *node << std::endl;
 
 	nodes.insert(Nodes::value_type(cost, node));
 }

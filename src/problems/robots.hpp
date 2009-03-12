@@ -68,7 +68,7 @@ MyDomain::MyDomain():
 		robots("rob") &&
 		resource("res")
 	);
-	makeRamp.add(isConnected("d", "s"));
+	makeRamp.add(isConnected("d",  "s"));
 
 	connectArea.param("d");
 	connectArea.param("s");
@@ -143,13 +143,6 @@ MyDomain::MyDomain():
 		isIn("o", "s"),
 		connectArea("d", "s") >> moveWithRobots("o", "d", "s")
 	);
-
-	std::cerr << moveObject << std::endl;
-	std::cerr << setConnected << std::endl;
-	std::cerr << makeRamp << std::endl;
-	std::cerr << connectArea << std::endl;
-	std::cerr << moveWithRobots << std::endl;
-	std::cerr << move << std::endl;
 }
 
 struct MyProblem: MyDomain, Problem {
@@ -170,6 +163,8 @@ struct MyProblem: MyDomain, Problem {
 		add(isConnectable("a1", "a2"));
 		add(isConnectable("a2", "a3"));
 		add(isConnectable("a3", "a4"));
+		//add(isConnectable("a0", "a3"));
+		//add(isConnectable("a0", "a2"));
 		add(isIn("o0", "a0"));
 		add(isIn("o1", "a2"));
 		add(isIn("r0", "a1"));
