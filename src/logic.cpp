@@ -457,6 +457,9 @@ std::ostream& operator<<(std::ostream& os, const DNF& dnf) {
 	return os;
 }
 
+ScopedProposition::ScopedProposition():
+	proposition(new CNF) {
+}
 
 ScopedProposition::ScopedProposition(const Scope& scope, std::auto_ptr<const Proposition> proposition):
 	scope(scope),
@@ -502,3 +505,6 @@ ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) c
 	std::auto_ptr<const Proposition> result(new Or(propositions));
 	return ScopedProposition(scope, result);
 }
+
+ScopedProposition True;
+		

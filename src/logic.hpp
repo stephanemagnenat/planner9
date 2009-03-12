@@ -151,7 +151,8 @@ struct DNF: Proposition, std::vector<std::vector<Literal> > {
 
 
 struct ScopedProposition {
-
+	ScopedProposition();
+			
 	ScopedProposition(const Scope& scope, std::auto_ptr<const Proposition> proposition);
 
 	ScopedProposition(const ScopedProposition& proposition);
@@ -167,5 +168,6 @@ struct ScopedProposition {
 
 };
 
+extern ScopedProposition True;
 
 #endif // LOGIC_HPP_
