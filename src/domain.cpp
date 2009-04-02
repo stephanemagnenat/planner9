@@ -15,7 +15,7 @@ Head::Head(const std::string& name) :
 
 void Head::param(const std::string& name) {
 	Scope scope(name);
-	Scope::Substitutions substs = this->scope.merge(scope);
+	Substitutions substs = this->scope.merge(scope);
 	variables.substitute(substs.first);
 	variables.push_back(substs.second.front());
 	++paramsCount;
@@ -31,17 +31,16 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	va_end(vargs);
 
 	Scope scope(names);
-	Scope::Indices indices = scope.getIndices(names);
+	Variables variables = scope.getVariables(names);
 
 	TaskNetwork network;
-	network.first.push_back(new Task(this, indices, Tasks()));
+	network.first.push_back(new Task(this, variables, Tasks()));
 
 	return ScopedTaskNetwork(scope, network);
 }
 
 std::ostream& operator<<(std::ostream& os, const Head& head) {
-	Scope::Names names = head.scope.getNames(head.variables);
-	return os << head.name << "(" << boost::algorithm::join(names, ", ") << ")";
+	return os << head.name << "(" << head.variables << ")";
 }
 
 
@@ -50,7 +49,7 @@ Action::Action(const std::string& name) :
 }
 
 void Action::pre(const ScopedProposition& precondition) {
-	Scope::Indices subst = merge(precondition.scope);
+	Substitution subst = merge(precondition.scope);
 	this->precondition = precondition.proposition->cnf();
 	this->precondition.substitute(subst);
 }
@@ -63,7 +62,7 @@ void Action::del(const ScopedProposition& scopedAtom) {
 	effect(scopedAtom, true);
 }
 
-State Action::Effects::apply(const State& state, const Scope::Indices subst) const {
+State Action::Effects::apply(const State& state, const Substitution subst) const {
 	State newState(state);
 	for (const_iterator it = begin(); it != end(); ++it) {
 		Literal literal = *it;
@@ -73,7 +72,7 @@ State Action::Effects::apply(const State& state, const Scope::Indices subst) con
 	return newState;
 }
 
-void Action::Effects::substitute(const Scope::Indices& subst) {
+void Action::Effects::substitute(const Substitution& subst) {
 	for (iterator it = begin(); it != end(); ++it) {
 		Literal& literal = *it;
 		literal.substitute(subst);
@@ -88,14 +87,15 @@ void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
 	effects.push_back(Literal(atom, negated));
 }
 
-Scope::Indices Action::merge(const Scope& scope) {
-	Scope::Substitutions substs = this->scope.merge(scope);
+Substitution Action::merge(const Scope& scope) {
+	Substitutions substs = this->scope.merge(scope);
 
 	variables.substitute(substs.first);
 	// add new variable indices to our variables
-	for(Scope::Index i = 0; i < scope.getSize(); ++i) {
-		if(std::find(variables.begin(), variables.end(), i) == variables.end()) {
-			variables.push_back(i);
+	for(size_t i = 0; i < scope.getSize(); ++i) {
+		Variable variable(i);
+		if(std::find(variables.begin(), variables.end(), variable) == variables.end()) {
+			variables.push_back(variable);
 		}
 	}
 
@@ -109,7 +109,7 @@ Scope::Indices Action::merge(const Scope& scope) {
 }
 
 
-Method::Alternative::Alternative(const std::string& name, const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost):
+Method::Alternative::Alternative(const std::string& name, const Scope& scope, const Variables& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost):
 	name(name),
 	scope(scope),
 	variables(variables),
@@ -142,31 +142,31 @@ void Method::alternative(const std::string& name, const ScopedProposition& preco
 
 	// merge precondition and decomposition scopes
 	Scope scope(precondition.scope);
-	Scope::Substitutions substs = scope.merge(decomposition.getScope());
+	Substitutions substs = scope.merge(decomposition.getScope());
 
 	// rewrite precondition and decomposition with the new scope
 	proposition.substitute(substs.first);
 	network.substitute(substs.second);
 
 	// merge with parameters scope of this method
-	Scope::Substitutions substs2 = scope.merge(this->scope);
+	Substitutions substs2 = scope.merge(this->scope);
 
 	// rewrite precondition and decomposition with the new scope
 	proposition.substitute(substs2.first);
 	network.substitute(substs2.first);
 
 	// compute parameters indices in the alternative scope
-	Scope::Indices subst(getVariables());
-	subst.substitute(substs2.second);
-	Scope::Indices variables;
-	variables.resize(scope.getSize(), Scope::Index(-1));
-	Scope::Index index = 0;
-	for(; index < subst.size(); ++index) {
-		variables[subst[index]] = index;
+	Variables params(getVariables());
+	params.substitute(substs2.second);
+	Variables variables;
+	variables.resize(scope.getSize(), Variable(-1));
+	size_t index = 0;
+	for(; index < params.size(); ++index) {
+		variables[params[index].index] = Variable(index);
 	}
-	for(size_t i = 0; i < variables.size(); ++i) {
-		if(variables[i] == Scope::Index(-1)) {
-			variables[i] = index;
+	for(Variables::iterator it = variables.begin(); it != variables.end(); ++it) {
+		if(*it == Variable(-1)) {
+			it->index = index;
 			++index;
 		}
 	}
@@ -174,7 +174,7 @@ void Method::alternative(const std::string& name, const ScopedProposition& preco
 	Alternative alternative(name, scope, variables, proposition, network, cost);
 
 	// insert the alternative
-	Alternatives::iterator position = std::lower_bound(alternatives.begin(), alternatives.end(), alternative);
+	Alternatives::iterator position = std::upper_bound(alternatives.begin(), alternatives.end(), alternative);
 	if(position == alternatives.begin())
 		minCost = cost;
 	alternatives.insert(position, alternative);

@@ -4,13 +4,13 @@
 #include <set>
 
 
-Task::Task(const Head* head, const Scope::Indices& params, const Tasks& successors):
+Task::Task(const Head* head, const Variables& params, const Tasks& successors):
 	head(head),
 	params(params),
 	successors(successors) {
 }
 
-void Task::substitute(const Scope::Indices& subst) {
+void Task::substitute(const Substitution& subst) {
 	params.substitute(subst);
 }
 
@@ -18,13 +18,13 @@ std::ostream& operator<<(std::ostream& os, const Task& task) {
 	return os << task.head->name << "(" << task.params << ")";
 }
 
-Scope::Indices Task::getSubstitution(const Scope::Indices& variables, Scope::Index nextVariable) const {
-	Scope::Indices subst(params);
+Substitution Task::getSubstitution(const Variables& variables, Variable::Index nextVariableIndex) const {
+	Substitution subst(params);
 	size_t newVariables = variables.size() - params.size();
 	for(size_t i = 0; i < newVariables; ++i) {
-		subst.push_back(nextVariable + i);
+		subst.push_back(Variable(nextVariableIndex + i));
 	}
-	Scope::Indices result(variables);
+	Substitution result(variables);
 	result.substitute(subst);
 	return result;
 }
@@ -40,15 +40,15 @@ TaskNetwork TaskNetwork::clone() const {
 }
 
 struct Substitute {
-	Substitute(const Scope::Indices& subst): subst(subst) {}
+	Substitute(const Substitution& subst): subst(subst) {}
 	Task* operator()(const Task* task) const {
 		Task* clone = new Task(*task);
 		clone->substitute(subst);
 		return clone;
 	}
-	const Scope::Indices& subst;
+	const Substitution& subst;
 };
-void TaskNetwork::substitute(const Scope::Indices& subst) {
+void TaskNetwork::substitute(const Substitution& subst) {
 	*this = rewrite(Substitute(subst));
 }
 
@@ -235,7 +235,7 @@ ScopedTaskNetwork::ScopedTaskNetwork(const Scope& scope, const TaskNetwork& netw
 
 ScopedTaskNetwork ScopedTaskNetwork::operator>>(const ScopedTaskNetwork& that) const {
 	Scope scope(this->scope);
-	Scope::Substitutions substs = scope.merge(that.scope);
+	Substitutions substs = scope.merge(that.scope);
 	TaskNetwork head(this->network.clone());
 	head.substitute(substs.first);
 	TaskNetwork tail(that.network.clone());

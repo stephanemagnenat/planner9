@@ -48,15 +48,15 @@ struct Relation {
 			return os;
 		}
 	};
-	typedef std::map<Scope::Index, VariableRange> VariablesRanges;
-			
+	typedef std::map<Variable, VariableRange> VariablesRanges;
+
 	Relation(const std::string& name, size_t arity);
 
 	ScopedProposition operator()(const char* first, ...);
 
 	virtual bool check(const Atom& atom, const State& state) const;
 	virtual void set(const Literal& literal, State& state) const;
-	virtual void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const;
+	virtual void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const;
 	virtual VariablesRanges getRange(const Atom& atom, const State& state, const size_t constantsCount) const;
 
 	std::string name;
@@ -70,11 +70,11 @@ struct EquivalentRelation : public Relation {
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
-	void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const;
+	void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const;
 	VariablesRanges getRange(const Atom& atom, const State& state, const size_t constantsCount) const;
-	
+
 protected:
-	Atom createAtom(const Scope::Index p0, const Scope::Index p1) const;
+	Atom createAtom(const Variable& p0, const Variable& p1) const;
 };
 
 struct EqualityRelation: public Relation {
@@ -83,7 +83,7 @@ struct EqualityRelation: public Relation {
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
-	void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const;
+	void groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const;
 	VariablesRanges getRange(const Atom& atom, const State& state, const size_t constantsCount) const;
 };
 extern EqualityRelation equals;

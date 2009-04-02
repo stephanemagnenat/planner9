@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <algorithm>
 
-Atom::Atom(const Relation* relation, const Scope::Indices& params):
+Atom::Atom(const Relation* relation, const Variables& params):
 	relation(relation),
 	params(params) {
 }
@@ -31,41 +31,42 @@ DNF Atom::dnf() const {
 }
 
 
-void Atom::substitute(const Scope::Indices& subst) {
+void Atom::substitute(const Substitution& subst) {
 	params.substitute(subst);
 }
 
-Scope::OptionalIndices Atom::unify(const Atom& atom, const size_t constantsCount, const Scope::Indices& subst) const {
-	Scope::Indices unifyingSubst(subst);
+OptionalVariables Atom::unify(const Atom& atom, const size_t constantsCount, const Substitution& subst) const {
+	Substitution unifyingSubst(subst);
 	if (relation != atom.relation)
 		return false;
 	assert(params.size() == atom.params.size());
 	// this is the grounded version
 	for (size_t i = 0; i < params.size(); ++i) {
-		const Scope::Index& stateIndex = params[i];
-		const Scope::Index& index = atom.params[i];
-		if (index < constantsCount) {
-			if (index != stateIndex)
+		const Variable& stateVariable = params[i];
+		const Variable& variable = atom.params[i];
+		if (variable.index < constantsCount) {
+			if (variable != stateVariable)
 				return false;
 		} else {
-			Scope::Index& substitutionIndex = unifyingSubst[index];
-			if (substitutionIndex != index) {
-				if (substitutionIndex != stateIndex)
+			Variable& substitutionVariable = unifyingSubst[variable.index];
+			if (substitutionVariable != variable) {
+				if (substitutionVariable != stateVariable)
 					return false;
 			} else {
-				substitutionIndex = stateIndex;
+				substitutionVariable = stateVariable;
 			}
 		}
 	}
-	
+
 	return unifyingSubst;
 }
 
 bool Atom::isCheckable(const size_t constantsCount) const {
 	bool isFoundCheckable = true;
-	for (Scope::Indices::const_iterator it = params.begin(); it != params.end(); ++it) {
-		if (*it >= constantsCount) {
+	for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
+		if (it->index >= constantsCount) {
 			isFoundCheckable = false;
+			break;
 		}
 	}
 	return isFoundCheckable;
@@ -116,7 +117,7 @@ DNF Not::dnf() const {
 	return dnf;
 }
 
-void Not::substitute(const Scope::Indices& subst) {
+void Not::substitute(const Substitution& subst) {
 	proposition->substitute(subst);
 }
 
@@ -149,7 +150,7 @@ DNF Or::dnf() const {
 }
 
 
-void Or::substitute(const Scope::Indices& subst) {
+void Or::substitute(const Substitution& subst) {
 	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
 		Proposition* proposition = *it;
 		proposition->substitute(subst);
@@ -184,7 +185,7 @@ DNF And::dnf() const {
 	return cnf().dnf();
 }
 
-void And::substitute(const Scope::Indices& subst) {
+void And::substitute(const Substitution& subst) {
 	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
 		Proposition* proposition = *it;
 		proposition->substitute(subst);
@@ -211,7 +212,7 @@ DNF Literal::dnf() const {
 	return DNF(conjunction);
 }
 
-void Literal::substitute(const Scope::Indices& subst) {
+void Literal::substitute(const Substitution& subst) {
 	atom.substitute(subst);
 }
 
@@ -246,7 +247,7 @@ DNF Clause::dnf() const {
 	return dnf;
 }
 
-void Clause::substitute(const Scope::Indices& subst) {
+void Clause::substitute(const Substitution& subst) {
 	for(iterator it = begin(); it != end(); ++it) {
 		it->substitute(subst);
 	}
@@ -293,12 +294,12 @@ DNF CNF::dnf() const {
 /// Simplifies the CNF, returns true if it was successful, false if simpliciation lead to an unsatisfiable proposition.
 /// If it returns false, cnf is untouched, otherwise it is updated with the simplified version
 
-Scope::OptionalIndices CNF::simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd) {
+OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd) {
 	bool wasSimplified;
-	Scope::Indices subst(Scope::Indices::identity(variablesEnd));
+	Substitution subst(Variables::identity(variablesEnd));
 	do {
 		wasSimplified = false;
-		
+
 		// DPLL Unit propagation: check which variables can be trivially grounded
 		for(iterator it = begin(); it != end(); ++it) {
 			if(it->size() == 1) {
@@ -309,10 +310,10 @@ Scope::OptionalIndices CNF::simplify(const State& state, const size_t variablesB
 				}
 			}
 		}
-		
+
 		// substitute CNF with grounded variables
 		substitute(subst);
-		
+
 		// simplify CNF
 		CNF newCnf;
 		for(iterator it = begin(); it != end(); ++it) {
@@ -342,11 +343,11 @@ Scope::OptionalIndices CNF::simplify(const State& state, const size_t variablesB
 		*this = newCnf;
 	}
 	while (wasSimplified);
-	
+
 	return subst;
 }
 
-void CNF::substitute(const Scope::Indices& subst) {
+void CNF::substitute(const Substitution& subst) {
 	for(iterator it = begin(); it != end(); ++it) {
 		for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 			jt->substitute(subst);
@@ -421,7 +422,7 @@ DNF DNF::dnf() const {
 }
 
 
-void DNF::substitute(const Scope::Indices& subst) {
+void DNF::substitute(const Substitution& subst) {
 	for(iterator it = begin(); it != end(); ++it) {
 		for(Conjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 			jt->substitute(subst);
@@ -480,7 +481,7 @@ ScopedProposition ScopedProposition::operator!() const {
 
 ScopedProposition ScopedProposition::operator&&(const ScopedProposition& that) const {
 	Scope scope(this->scope);
-	Scope::Substitutions substs = scope.merge(that.scope);
+	Substitutions substs = scope.merge(that.scope);
 	Proposition* left = this->proposition->clone();
 	Proposition* right = that.proposition->clone();
 	left->substitute(substs.first);
@@ -494,7 +495,7 @@ ScopedProposition ScopedProposition::operator&&(const ScopedProposition& that) c
 
 ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) const {
 	Scope scope(this->scope);
-	Scope::Substitutions substs = scope.merge(that.scope);
+	Substitutions substs = scope.merge(that.scope);
 	Proposition* left = this->proposition->clone();
 	Proposition* right = that.proposition->clone();
 	left->substitute(substs.first);
@@ -507,4 +508,4 @@ ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) c
 }
 
 ScopedProposition True;
-		
+

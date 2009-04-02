@@ -16,7 +16,7 @@
 struct TreeNode {
 	TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	friend std::ostream& operator<<(std::ostream& os, const TreeNode& node);
-	
+
 	const Plan plan;
 	const TaskNetwork network; // T
 	const size_t allocatedVariablesCount;
@@ -55,7 +55,7 @@ Planner9::Planner9(const Problem& problem, std::ostream* debugStream):
 boost::optional<Plan> Planner9::plan(size_t threadsCount) {
 	// HTN: P = the empty plan
 	addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
-	
+
 	boost::mutex::scoped_lock lock(mutex);
 
 	boost::thread_group threads;
@@ -63,10 +63,10 @@ boost::optional<Plan> Planner9::plan(size_t threadsCount) {
 		threads.create_thread(boost::ref(*this));
 		workingThreadCount++;
 	}
-	
+
 	lock.unlock();
 	threads.join_all();
-	
+
 	std::cout << "Terminated after " << iterationCount << " iterations" << std::endl;
 
 	if(plans.empty())
@@ -78,7 +78,7 @@ boost::optional<Plan> Planner9::plan(size_t threadsCount) {
 bool Planner9::step() {
 	boost::mutex::scoped_lock lock(mutex);
 	workingThreadCount--;
-	
+
 	do {
 		if (!plans.empty())
 			return false;
@@ -89,20 +89,20 @@ bool Planner9::step() {
 				condition.wait(lock);
 		}
 	} while (nodes.empty() || !plans.empty());
-	
+
 	Nodes::iterator front = nodes.begin();
 	TreeNode* node = front->second;
 	nodes.erase(front);
-	
+
 	workingThreadCount++;
 	lock.unlock();
 
 	if (debugStream)
 		*debugStream << "- " << *node << std::endl;
-	
+
 	visitNode(node->plan, node->network, node->allocatedVariablesCount, node->cost, node->preconditions, node->state);
 
-	
+
 	delete node;
 	return true;
 }
@@ -145,7 +145,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 			TaskNetwork newNetwork = network.erase(taskIt);
 
-			Scope::Indices subst = t->getSubstitution(action->getVariables(), allocatedVariablesCount);
+			Substitution subst = t->getSubstitution(action->getVariables(), allocatedVariablesCount);
 			size_t newAllocatedVariablesCount = allocatedVariablesCount + action->getScope().getSize() - head->getParamsCount();
 
 			CNF newPreconditions(action->getPrecondition());
@@ -153,7 +153,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			newPreconditions += preconditions;
 
 			if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-			Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+			OptionalVariables simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 			if (simplificationResult) {
 				if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
 
@@ -162,7 +162,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 				Plan newPlan(plan);
 
-				Scope::Indices simplificationSubst(simplificationResult.get());
+				Substitution simplificationSubst(simplificationResult.get());
 				newAllocatedVariablesCount = simplificationSubst.defrag(problem.scope.getSize());
 				newPreconditions.substitute(simplificationSubst);
 				newPlan.substitute(simplificationSubst);
@@ -172,7 +172,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				// discover which variables must be grounded
 
 				// collect all variables and relation affected by the effects
-				Scope::IndexSet affectedVariables;
+				VariableSet affectedVariables;
 				{
 					typedef std::set<const Relation*> AffectedRelations;
 					AffectedRelations affectedRelations;
@@ -181,10 +181,10 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					for(Action::Effects::const_iterator it = effects.begin(); it != effects.end(); ++it) {
 						const Literal& literal = *it;
 						affectedRelations.insert(literal.atom.relation);
-						for (Scope::Indices::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
-							const Scope::Index index = *jt;
-							if(index >= problem.scope.getSize())
-								affectedVariables.insert(index);
+						for (Variables::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
+							const Variable& variable = *jt;
+							if(variable.index >= problem.scope.getSize())
+								affectedVariables.insert(variable);
 						}
 					}
 
@@ -194,10 +194,10 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 							const Atom& atom = jt->atom;
 							if (affectedRelations.find(atom.relation) != affectedRelations.end()) {
 								// the relation of this atom is affected, all its variables must be grounded
-								for (Scope::Indices::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
-									const Scope::Index index = *kt;
-									if(index >= problem.scope.getSize())
-										affectedVariables.insert(index);
+								for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
+									const Variable& variable = *kt;
+									if(variable.index >= problem.scope.getSize())
+										affectedVariables.insert(variable);
 								}
 							}
 						}
@@ -208,9 +208,9 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				typedef Relation::VariableRange VariableRange;
 				typedef Relation::VariablesRanges VariablesRanges;
 				VariablesRanges variablesRanges;
-				for (Scope::IndexSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
-					const Scope::Index index = *it;
-					variablesRanges[index] = VariableRange(problem.scope.getSize(), true);
+				for (VariableSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
+					const Variable& variable = *it;
+					variablesRanges[variable] = VariableRange(problem.scope.getSize(), true);
 				}
 
 				// filter out variables ranges using state
@@ -222,18 +222,18 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 						VariablesRanges atomRanges(atom.relation->getRange(atom, state, problem.scope.getSize()));
 						// extend range of variables if it is to be grounded
 						for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
-							const Scope::Index& index = kt->first;
+							const Variable& variable = kt->first;
 							// TODO: optimize this with an index check
-							if (affectedVariables.find(index) != affectedVariables.end()) {
+							if (affectedVariables.find(variable) != affectedVariables.end()) {
 								VariableRange& paramRange = kt->second;
 								if(literal.negated)
 									~paramRange;
-								VariablesRanges::iterator clauseRangesIt = clauseRanges.find(index);
+								VariablesRanges::iterator clauseRangesIt = clauseRanges.find(variable);
 								if (clauseRangesIt != clauseRanges.end()) {
 									VariableRange& range = clauseRangesIt->second;
 									range |= paramRange;
 								} else {
-									clauseRanges[index] = paramRange;
+									clauseRanges[variable] = paramRange;
 								}
 							}
 						}
@@ -256,7 +256,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					*debugStream << "constants " << problem.scope << std::endl;
 					*debugStream << "assigning";
 					for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
-						*debugStream << " var" << it->first - problem.scope.getSize() << " " << it->second ;
+						*debugStream << " " << it->first << " " << it->second ;
 					}
 					*debugStream << std::endl;
 				}
@@ -267,28 +267,28 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 						return;
 					}
 				}
-				
+
 				// DPLL (http://en.wikipedia.org/wiki/DPLL_algorithm)
-				typedef std::pair<Scope::Indices, CNF> Grounding;
+				typedef std::pair<Substitution, CNF> Grounding;
 				typedef std::vector<Grounding> Groundings;
-				Groundings groundings(1, std::make_pair(Scope::Indices::identity(newAllocatedVariablesCount), newPreconditions));
+				Groundings groundings(1, std::make_pair(Substitution::identity(newAllocatedVariablesCount), newPreconditions));
 				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end() && !groundings.empty(); ++it) {
-					const VariablesRanges::value_type& variable = *it;
-					const Scope::Index index = variable.first;
-					const VariableRange& range = variable.second;
+					const VariablesRanges::value_type& pair = *it;
+					const Variable& variable = pair.first;
+					const VariableRange& range = pair.second;
 					Groundings newGroundings;
 					for (Groundings::const_iterator kt = groundings.begin(); kt != groundings.end(); ++kt) {
-						const Scope::Indices& subst(kt->first);
+						const Substitution& subst(kt->first);
 						const CNF& pre(kt->second);
-						if(subst[index] == index) {
+						if(subst[variable.index] == variable) {
 							for (size_t jt = 0; jt < range.size(); ++jt) {
 								const bool isPossible = range[jt];
 								if (isPossible) {
-									Scope::Indices newSubst(subst);
-									newSubst[index] = jt;
+									Substitution newSubst(subst);
+									newSubst[variable.index] = Variable(jt);
 									CNF newPre(pre);
 									newPre.substitute(newSubst);
-									Scope::OptionalIndices simplificationResult = newPre.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+									OptionalVariables simplificationResult = newPre.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 									if (simplificationResult) {
 										newSubst.substitute(simplificationResult.get());
 										newGroundings.push_back(std::make_pair(newSubst, newPre));
@@ -301,18 +301,18 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					}
 					std::swap(groundings, newGroundings);
 				}
-				
+
 				// Create new nodes with valid groundings
 				for (Groundings::iterator it = groundings.begin(); it != groundings.end(); ++it) {
-					Scope::Indices& subst(it->first);
+					Substitution& subst(it->first);
 					CNF& remainingPreconditions(it->second);
 					size_t assignedAllocatedVariablesCount = subst.defrag(problem.scope.getSize());
 					remainingPreconditions.substitute(subst);
-					
+
 					// create new task network
 					TaskNetwork assignedNetwork(newNetwork.clone());
 					assignedNetwork.substitute(subst);
-					
+
 					// HTN: append a to P
 					Plan assignedPlan(newPlan);
 					assignedPlan.push_back(*t);
@@ -344,7 +344,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			for (Method::Alternatives::const_iterator altIt = method->alternatives.begin(); altIt != method->alternatives.end(); ++altIt) {
 				const Method::Alternative& alternative = *altIt;
 
-				Scope::Indices subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
+				Substitution subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
 				if (debugStream) *debugStream << "* alternative " << alternative.name << std::endl;
@@ -352,26 +352,26 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				newPreconditions.substitute(subst);
 				newPreconditions += preconditions;
 				if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-				Scope::OptionalIndices simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+				OptionalVariables simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 				if (simplificationResult) {
 					if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-	
+
 					Plan newPlan(plan);
-	
+
 					// HTN: modify T by removing t, adding sub(m), constraining each task
 					// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
 					TaskNetwork decomposition(alternative.tasks.clone());
 					decomposition.substitute(subst);
 					TaskNetwork newNetwork = network.replace(taskIt, decomposition);
-					
-					Scope::Indices simplificationSubst(simplificationResult.get());
+
+					Substitution simplificationSubst(simplificationResult.get());
 					newAllocatedVariablesCount = simplificationSubst.defrag(problem.scope.getSize());
 					newPreconditions.substitute(simplificationSubst);
 					newPlan.substitute(simplificationSubst);
 					newNetwork.substitute(simplificationSubst);
-					
+
 					Cost newCost = cost + alternative.cost;
-	
+
 					// HTN: if sub(m) = ∅ then
 					// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
 					// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
@@ -389,7 +389,7 @@ void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allo
 	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions, state);
 
 	cost += network.getSize();
-	
+
 	if (debugStream)
 		*debugStream << "+ " << *node << std::endl;
 

@@ -18,7 +18,7 @@ struct Problem {
 
 private:
 
-	Scope::Indices merge(const Scope& scope);
+	Substitution merge(const Scope& scope);
 
 };
 

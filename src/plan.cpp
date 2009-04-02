@@ -1,7 +1,7 @@
 #include "plan.hpp"
 
 
-void Plan::substitute(const Scope::Indices& subst) {
+void Plan::substitute(const Substitution& subst) {
 	for(Plan::iterator it = begin(); it != end(); ++it) {
 		it->substitute(subst);
 	}

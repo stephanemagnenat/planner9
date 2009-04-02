@@ -2,6 +2,7 @@
 #define TASKS_HPP_
 
 
+#include "variable.hpp"
 #include "scope.hpp"
 #include <boost/function.hpp>
 #include <map>
@@ -17,24 +18,24 @@ typedef std::vector<const Task*> Tasks;
 
 struct Task {
 
-	Task(const Head* head, const Scope::Indices& params, const Tasks& successors);
+	Task(const Head* head, const Variables& params, const Tasks& successors);
 
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 	const Head* head;
-	Scope::Indices params;
+	Variables params;
 	Tasks successors;
 
 	friend std::ostream& operator<<(std::ostream& os, const Task& task);
 
-	Scope::Indices getSubstitution(const Scope::Indices& variables, Scope::Index nextVariable) const;
+	Substitution getSubstitution(const Variables& variables, Variable::Index nextVariableIndex) const;
 
 };
 
 struct TaskNetwork {
 
 	TaskNetwork clone() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 	TaskNetwork operator>>(const TaskNetwork& that) const;
 
 	TaskNetwork erase(Tasks::const_iterator position) const;

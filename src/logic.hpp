@@ -3,6 +3,7 @@
 
 
 #include "scope.hpp"
+#include "variable.hpp"
 #include <memory>
 
 
@@ -16,26 +17,26 @@ struct Proposition {
 	virtual Proposition* clone() const = 0;
 	virtual CNF cnf() const = 0;
 	virtual DNF dnf() const = 0;
-	virtual void substitute(const Scope::Indices& subst) = 0;
+	virtual void substitute(const Substitution& subst) = 0;
 
 };
 
 struct Atom: Proposition {
-	Atom(const Relation* relation, const Scope::Indices& params);
+	Atom(const Relation* relation, const Variables& params);
 
 	bool operator<(const Atom& that) const;
 
 	Atom* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
-	Scope::OptionalIndices unify(const Atom& atom, const size_t constantsCount, const Scope::Indices& subst) const;
+	void substitute(const Substitution& subst);
+	OptionalVariables unify(const Atom& atom, const size_t constantsCount, const Substitution& subst) const;
 	bool isCheckable(const size_t constantsCount) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const Atom& atom);
 
 	const Relation* relation;
-	Scope::Indices params;
+	Variables params;
 
 };
 
@@ -46,7 +47,7 @@ struct Not: Proposition {
 	Not* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 	std::auto_ptr<Proposition> proposition;
 
@@ -61,7 +62,7 @@ struct Or: Proposition {
 	Or* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 	Propositions propositions;
 
@@ -76,7 +77,7 @@ struct And: Proposition {
 	And* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 	Propositions propositions;
 
@@ -89,7 +90,7 @@ struct Literal: Proposition {
 	Literal* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 	friend std::ostream& operator<<(std::ostream& os, const Literal& literal);
 
@@ -107,7 +108,7 @@ struct Clause: Proposition, std::vector<Literal> {
 	Clause* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 };
 
@@ -121,8 +122,8 @@ struct CNF: Proposition, std::vector<Clause> {
 	CNF* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
-	Scope::OptionalIndices simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd);
+	void substitute(const Substitution& subst);
+	OptionalVariables simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd);
 
 	void operator+=(const CNF& that);
 
@@ -140,7 +141,7 @@ struct DNF: Proposition, std::vector<std::vector<Literal> > {
 	DNF* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
-	void substitute(const Scope::Indices& subst);
+	void substitute(const Substitution& subst);
 
 	void operator+=(const DNF& that);
 
@@ -152,7 +153,7 @@ struct DNF: Proposition, std::vector<std::vector<Literal> > {
 
 struct ScopedProposition {
 	ScopedProposition();
-			
+
 	ScopedProposition(const Scope& scope, std::auto_ptr<const Proposition> proposition);
 
 	ScopedProposition(const ScopedProposition& proposition);

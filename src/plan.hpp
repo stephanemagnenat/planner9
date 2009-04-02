@@ -7,9 +7,9 @@
 
 
 struct Plan: std::vector<Task> {
-	
-	void substitute(const Scope::Indices& subst);
-	
+
+	void substitute(const Substitution& subst);
+
 	friend std::ostream& operator<<(std::ostream& os, const Plan& plan);
 
 };

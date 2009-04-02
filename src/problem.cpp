@@ -11,13 +11,13 @@ void Problem::add(const ScopedProposition& scopedAtom) {
 }
 
 void Problem::goal(const ScopedTaskNetwork& goal) {
-	Scope::Indices subst(merge(goal.getScope()));
+	Substitution subst(merge(goal.getScope()));
 	network = goal.getNetwork().clone();
 	network.substitute(subst);
 }
 
-Scope::Indices Problem::merge(const Scope& scope) {
-	Scope::Substitutions substs = this->scope.merge(scope);
+Substitution Problem::merge(const Scope& scope) {
+	Substitutions substs = this->scope.merge(scope);
 	State newState;
 	for(State::iterator it = state.begin(); it != state.end(); ++it) {
 		Atom atom(*it);

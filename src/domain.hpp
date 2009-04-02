@@ -27,17 +27,17 @@ struct Head {
 	virtual void dummy() {}
 
 	const Scope& getScope() const { return scope; }
-	const Scope::Indices& getVariables() const { return variables; }
+	const Variables& getVariables() const { return variables; }
 	size_t getParamsCount() const { return paramsCount; }
 
 	friend std::ostream& operator<<(std::ostream& os, const Head& head);
 
 protected:
 
-	Scope::Indices merge(const Scope& scope);
+	Substitution merge(const Scope& scope);
 
 	Scope scope;
-	Scope::Indices variables;
+	Variables variables;
 	size_t paramsCount;
 
 };
@@ -54,8 +54,8 @@ struct Action: Head { // TODO: allow free local variables, like in an alternativ
 	void del(const ScopedProposition& atom);
 
 	struct Effects:public std::vector<Literal>  {
-		State apply(const State& state, const Scope::Indices subst) const;
-		void substitute(const Scope::Indices& subst);
+		State apply(const State& state, const Substitution subst) const;
+		void substitute(const Substitution& subst);
 	};
 
 //	std::vector<std::pair<GroundInstance, Substitution> > groundings();
@@ -64,7 +64,7 @@ struct Action: Head { // TODO: allow free local variables, like in an alternativ
 
 private:
 
-	Scope::Indices merge(const Scope& scope);
+	Substitution merge(const Scope& scope);
 	void effect(const ScopedProposition& atom, bool negated);
 
 	CNF precondition;
@@ -81,15 +81,15 @@ struct Method: Head {
 	struct Alternative {
 		std::string name;
 		Scope scope;
-		Scope::Indices variables;
+		Variables variables;
 		CNF precondition;
 		TaskNetwork tasks; // TODO: free network's tasks upon delete
 		Cost cost;
 
-		Alternative(const std::string& name, const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost);
+		Alternative(const std::string& name, const Scope& scope, const Variables& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost);
 		bool operator<(const Alternative& that) const;
 		friend std::ostream& operator<<(std::ostream& os, const Alternative& alternative);
-		
+
 	};
 
 	typedef std::vector<Alternative> Alternatives;

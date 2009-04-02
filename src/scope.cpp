@@ -1,57 +1,8 @@
 #include "scope.hpp"
+#include "variable.hpp"
 #include <algorithm>
 #include <cassert>
 #include <boost/format.hpp>
-
-
-void Scope::Indices::substitute(const Indices& subst) {
-	for(iterator it = begin(); it != end(); ++it) {
-		assert(*it < subst.size());
-		Index index = subst[*it];
-		*it = index;
-	}
-}
-
-/// regroup all used variables just after the constants, returns the new end of variables
-Scope::Index Scope::Indices::defrag(const Index& constantsCount) {
-	Index varIndex = constantsCount;
-	for(iterator it = begin() + constantsCount; it != end(); ++it) {
-		Index index = *it;
-		if (index >= constantsCount) {
-			*it = varIndex++;
-		}
-	}
-	return varIndex;
-}
-
-bool Scope::Indices::containsAny(const IndexSet& indexSet) {
-	for (const_iterator it = begin(); it != end(); ++it) {
-		const Scope::Index index = *it;
-		if (indexSet.find(index) != indexSet.end())
-			return true;
-	}
-	return false;
-}
-
-std::ostream& operator<<(std::ostream& os, const Scope::Indices& indices) {
-	const Scope& scope = Scope::getScope(os);
-	for(Scope::Indices::const_iterator it = indices.begin(); it != indices.end(); ++it) {
-		Scope::Index index = *it;
-		if(it != indices.begin())
-			os << ", ";
-		os << scope.getName(index);
-	}
-	return os;
-}
-
-Scope::Indices Scope::Indices::identity(size_t size) {
-	Indices indices;
-	indices.reserve(size);
-	for(size_t i = 0; i < size; ++i) {
-		indices.push_back(Index(i));
-	}
-	return indices;
-}
 
 
 static int xword = std::ios_base::xalloc();
@@ -87,7 +38,8 @@ Scope::Scope(const Names& names):
 	std::sort(this->names.begin(), this->names.end());
 }
 
-Scope::Name Scope::getName(Scope::Index index) const {
+Scope::Name Scope::getName(const Variable& variable) const {
+	const Variable::Index& index = variable.index;
 	if(index < getSize()) {
 		return names[index];
 	} else {
@@ -95,18 +47,8 @@ Scope::Name Scope::getName(Scope::Index index) const {
 	}
 }
 
-Scope::Names Scope::getNames(const Indices& indices) const {
-	Scope::Names result;
-	result.reserve(indices.size());
-	for(Indices::const_iterator it = indices.begin(); it != indices.end(); ++it) {
-		Scope::Index index = *it;
-		result.push_back(getName(index));
-	}
-	return result;
-}
-
-Scope::Indices Scope::getIndices(const Names& names) const {
-	Scope::Indices result;
+Variables Scope::getVariables(const Names& names) const {
+	Variables result;
 	result.reserve(names.size());
 
 	Names::const_iterator begin = this->names.begin();
@@ -115,7 +57,7 @@ Scope::Indices Scope::getIndices(const Names& names) const {
 	for(Names::const_iterator it = names.begin(); it != names.end(); ++it) {
 		Names::const_iterator found = std::lower_bound(begin, end, *it);
 		assert(found != end);
-		result.push_back(found - begin);
+		result.push_back(Variable(found - begin));
 	}
 	return result;
 }
@@ -129,8 +71,10 @@ std::ostream& operator<<(std::ostream& os, const Scope& scope) {
 	return os;
 }
 
-Scope::Substitutions Scope::merge(const Names& names2) {
-	Indices indices, indices2;
+Substitutions Scope::merge(const Scope& that) {
+	const Names& names2 = that.names;
+
+	Substitution subst, subst2;
 	Names result;
 
 	Names::const_iterator begin, end;
@@ -151,7 +95,7 @@ Scope::Substitutions Scope::merge(const Names& names2) {
 			cmp = it->compare(*it2);
 		}
 
-		Scope::Index index = result.size();
+		Variable variable(result.size());
 		if (cmp <= 0) {
 			result.push_back(*it);
 		} else {
@@ -159,22 +103,18 @@ Scope::Substitutions Scope::merge(const Names& names2) {
 		}
 
 		if (cmp <= 0) {
-			indices.push_back(index);
+			subst.push_back(variable);
 			++it;
 		}
 		if (cmp >= 0) {
-			indices2.push_back(index);
+			subst2.push_back(variable);
 			++it2;
 		}
 	}
 
 	std::swap(names, result);
 
-	return make_pair(indices, indices2);
-}
-
-Scope::Substitutions Scope::merge(const Scope& that) {
-	return merge(that.names);
+	return make_pair(subst, subst2);
 }
 
 Scope::SetScope Scope::setScope(const Scope& scope) {
