@@ -19,10 +19,12 @@ void Problem::goal(const ScopedTaskNetwork& goal) {
 Scope::Indices Problem::merge(const Scope& scope) {
 	Scope::Substitutions substs = this->scope.merge(scope);
 	State newState;
-	for(State::iterator it = state.begin(); it != state.end(); ++it) {
-		Atom atom(*it);
-		atom.substitute(substs.first);
-		newState.insert(atom);
+	for(State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			Atom atom(*jt);
+			atom.substitute(substs.first);
+			newState.insert(atom);
+		}
 	}
 	std::swap(newState, state);
 	network.substitute(substs.first);

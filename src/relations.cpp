@@ -27,7 +27,7 @@ ScopedProposition Relation::operator()(const char* first, ...) {
 
 bool Relation::check(const Atom& atom, const State& state) const {
 	assert(atom.params.size() == arity);
-	return state.find(atom) != state.end();
+	return state.contains(atom);
 }
 
 void Relation::set(const Literal& literal, State& state) const {
@@ -40,15 +40,19 @@ void Relation::set(const Literal& literal, State& state) const {
 
 void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
 	Scope::OptionalIndices unifier;
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		Scope::OptionalIndices newUnifier = it->unify(atom, constantsCount, subst);
-		if (newUnifier) {
-			if (unifier) {
-				return;
-			} else {
-				unifier = newUnifier;
-			}
-		}	
+	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
+	if (it != state.atoms.end()) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			const Atom& stateAtom = *jt;
+			Scope::OptionalIndices newUnifier = stateAtom.unify(atom, constantsCount, subst);
+			if (newUnifier) {
+				if (unifier) {
+					return;
+				} else {
+					unifier = newUnifier;
+				}
+			}	
+		}
 	}
 	if(unifier)
 		subst = unifier.get();
@@ -64,9 +68,10 @@ Relation::VariablesRanges Relation::getRange(const Atom& atom, const State& stat
 			atomRanges[index] = VariableRange(constantsCount, false);
 	}
 
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		const Atom& stateAtom = *it;
-		if (stateAtom.relation == this) {
+	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
+	if (it != state.atoms.end()) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			const Atom& stateAtom = *jt;
 			assert(arity == stateAtom.params.size());
 			for (size_t j = 0; j < arity; ++j) {
 				Scope::Index constantIndex = stateAtom.params[j];
@@ -119,11 +124,16 @@ void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, co
 	Atom inverseAtom(createAtom(p1, p0));
 	
 	// if present in the state, then not unique
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		if (it->unify(atom, constantsCount, subst))
-			return;
-		if (it->unify(inverseAtom, constantsCount, subst))
-			return;
+	// FIXME: is it cleaner to use this or atom.relation in the lookup?
+	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
+	if (it != state.atoms.end()) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			const Atom& stateAtom = *jt;
+			if (stateAtom.unify(atom, constantsCount, subst))
+				return;
+			if (stateAtom.unify(inverseAtom, constantsCount, subst))
+				return;
+		}
 	}
 	
 	// ground with self
