@@ -1,7 +1,7 @@
 //#include "problems/basic.hpp"
 //#include "problems/mini-robots.hpp"
-#include "problems/robots.hpp"
-//#include "problems/rover.hpp"
+//#include "problems/robots.hpp"
+#include "problems/rover.hpp"
 #include "planner9.hpp"
 
 
@@ -16,11 +16,6 @@ int main(int argc, char* argv[]) {
 	std::cout << "dnf:" << proposition.proposition->dnf() << std::endl;
 	std::cout << "cnf:" << proposition.proposition->cnf() << std::endl;
 */
-	MyProblem problem;
-	std::cout << Scope::setScope(problem.scope);
-	std::cout << "initial state: "<< problem.state << std::endl;
-	std::cout << "initial network: " << problem.network << std::endl;
-
 	std::ostream* dump(0);
 	size_t threadsCount = 1;
 	if (argc > 1) {
@@ -33,6 +28,18 @@ int main(int argc, char* argv[]) {
 	if (argc > 2) {
 		dump = &std::cout;
 	}
+	
+	// FIXME: remove debug here
+	//dump = &std::cerr;
+	
+	MyProblem problem;
+	std::cout << Scope::setScope(problem.scope);
+	std::cout << "initial state: "<< problem.state << std::endl;
+	std::cout << "initial network: " << problem.network << std::endl;
+	
+	if (dump)
+		*dump << Scope::setScope(problem.scope);
+	
 	Planner9 planner(problem, dump);
 
 	boost::optional<Plan> plan = planner.plan(threadsCount);

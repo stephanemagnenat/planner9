@@ -48,6 +48,7 @@ Scope::OptionalIndices Atom::unify(const Atom& atom, const size_t constantsCount
 			if (index != stateIndex)
 				return false;
 		} else {
+			assert(index < unifyingSubst.size());
 			Scope::Index& substitutionIndex = unifyingSubst[index];
 			if (substitutionIndex != index) {
 				if (substitutionIndex != stateIndex)

@@ -29,6 +29,13 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	for(size_t i = 1; i < paramsCount; ++i)
 		names.push_back(va_arg(vargs, const char*));
 	va_end(vargs);
+	
+	if (names.size() != paramsCount)
+	{
+		std::cerr << "warning task " << name << " has only" << names.size() << " parameters instead of " << paramsCount << " as declared!" << std::endl;
+		abort();
+		// FIXME: manage pre/circular definitions correctly
+	}
 
 	Scope scope(names);
 	Scope::Indices indices = scope.getIndices(names);
