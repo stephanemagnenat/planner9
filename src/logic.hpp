@@ -12,6 +12,7 @@ struct DNF;
 struct State;
 
 struct Proposition {
+	virtual ~Proposition() {}
 
 	virtual Proposition* clone() const = 0;
 	virtual CNF cnf() const = 0;
@@ -41,14 +42,15 @@ struct Atom: Proposition {
 
 struct Not: Proposition {
 
-	Not(std::auto_ptr<Proposition> proposition);
+	Not(Proposition* proposition);
+	~Not();
 
 	Not* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Scope::Indices& subst);
 
-	std::auto_ptr<Proposition> proposition;
+	Proposition *const proposition;
 
 };
 
@@ -57,6 +59,7 @@ struct Or: Proposition {
 	typedef std::vector<Proposition*> Propositions;
 
 	Or(const Propositions& propositions = Propositions());
+	~Or();
 
 	Or* clone() const;
 	CNF cnf() const;
@@ -72,6 +75,7 @@ struct And: Proposition {
 	typedef std::vector<Proposition*> Propositions;
 
 	And(const Propositions& propositions = Propositions());
+	~And();
 
 	And* clone() const;
 	CNF cnf() const;
@@ -153,9 +157,11 @@ struct DNF: Proposition, std::vector<std::vector<Literal> > {
 struct ScopedProposition {
 	ScopedProposition();
 			
-	ScopedProposition(const Scope& scope, std::auto_ptr<const Proposition> proposition);
+	ScopedProposition(const Scope& scope, const Proposition* proposition);
 
 	ScopedProposition(const ScopedProposition& proposition);
+
+	~ScopedProposition();
 
 	ScopedProposition operator!() const;
 
@@ -164,7 +170,7 @@ struct ScopedProposition {
 	ScopedProposition operator||(const ScopedProposition& that) const;
 
 	const Scope scope;
-	const std::auto_ptr<const Proposition> proposition;
+	const Proposition *const proposition;
 
 };
 

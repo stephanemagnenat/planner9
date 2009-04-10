@@ -9,16 +9,17 @@
 
 Head::Head(const std::string& name) :
 	name(name),
-	minCost(0),
-	paramsCount(0) {
+	minCost(0) {
 }
 
 void Head::param(const std::string& name) {
 	Scope scope(name);
-	Scope::Substitutions substs = this->scope.merge(scope);
-	variables.substitute(substs.first);
-	variables.push_back(substs.second.front());
-	++paramsCount;
+	const size_t scopeSize(paramsScope.getSize());
+	paramsScope.merge(scope);
+	if (paramsScope.getSize() != scopeSize + 1) {
+		std::cerr << this->name << ": Each parameter must have a different name" << std::endl;
+		abort();
+	}
 }
 
 ScopedTaskNetwork Head::operator()(const char* first, ...) const {
@@ -26,13 +27,13 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	names.push_back(first);
 	va_list vargs;
 	va_start(vargs, first);
-	for(size_t i = 1; i < paramsCount; ++i)
+	for(size_t i = 1; i < getParamsCount(); ++i)
 		names.push_back(va_arg(vargs, const char*));
 	va_end(vargs);
 	
-	if (names.size() != paramsCount)
+	if (names.size() != getParamsCount())
 	{
-		std::cerr << "warning task " << name << " has only" << names.size() << " parameters instead of " << paramsCount << " as declared!" << std::endl;
+		std::cerr << "warning task " << name << " has only" << names.size() << " parameters instead of " << getParamsCount() << " as declared!" << std::endl;
 		abort();
 		// FIXME: manage pre/circular definitions correctly
 	}
@@ -47,8 +48,7 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Head& head) {
-	Scope::Names names = head.scope.getNames(head.variables);
-	return os << head.name << "(" << boost::algorithm::join(names, ", ") << ")";
+	return os << head.name << "(" << boost::algorithm::join(head.paramsScope.names, ", ") << ")";
 }
 
 
@@ -57,7 +57,8 @@ Action::Action(const std::string& name) :
 }
 
 void Action::pre(const ScopedProposition& precondition) {
-	Scope::Indices subst = merge(precondition.scope);
+	scope.merge(paramsScope); // make sure we have all the params
+	Scope::Indices subst = scope.merge(precondition.scope);
 	this->precondition = precondition.proposition->cnf();
 	this->precondition.substitute(subst);
 }
@@ -88,38 +89,18 @@ void Action::Effects::substitute(const Scope::Indices& subst) {
 }
 
 void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
-	const Atom* originalAtom = dynamic_cast<const Atom*>(scopedAtom.proposition.get());
+	scope.merge(paramsScope); // make sure we have all the params
+	const Atom* originalAtom = dynamic_cast<const Atom*>(scopedAtom.proposition);
 	assert(originalAtom != 0);
 	Atom atom(*originalAtom);
-	atom.substitute(merge(scopedAtom.scope));
+	atom.substitute(scope.merge(scopedAtom.scope));
 	effects.push_back(Literal(atom, negated));
 }
 
-Scope::Indices Action::merge(const Scope& scope) {
-	Scope::Substitutions substs = this->scope.merge(scope);
 
-	variables.substitute(substs.first);
-	// add new variable indices to our variables
-	for(Scope::Index i = 0; i < scope.getSize(); ++i) {
-		if(std::find(variables.begin(), variables.end(), i) == variables.end()) {
-			variables.push_back(i);
-		}
-	}
-
-	precondition.substitute(substs.first);
-
-	for(Effects::iterator it = effects.begin(); it != effects.end(); ++it) {
-		it->substitute(substs.first);
-	}
-
-	return substs.second;
-}
-
-
-Method::Alternative::Alternative(const std::string& name, const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost):
+Method::Alternative::Alternative(const std::string& name, const Scope& scope, const CNF& precondition, const TaskNetwork& tasks, Cost cost):
 	name(name),
 	scope(scope),
-	variables(variables),
 	precondition(precondition),
 	tasks(tasks),
 	cost(cost) {
@@ -147,38 +128,20 @@ void Method::alternative(const std::string& name, const ScopedProposition& preco
 	CNF proposition = precondition.proposition->cnf();
 	TaskNetwork network = decomposition.getNetwork().clone();
 
-	// merge precondition and decomposition scopes
-	Scope scope(precondition.scope);
-	Scope::Substitutions substs = scope.merge(decomposition.getScope());
+	Scope scope(paramsScope);
 
-	// rewrite precondition and decomposition with the new scope
-	proposition.substitute(substs.first);
-	network.substitute(substs.second);
+	// rewrite precondition for the alternative
+	Scope::Indices preconditionSubst = scope.merge(precondition.scope);
+	proposition.substitute(preconditionSubst);
 
-	// merge with parameters scope of this method
-	Scope::Substitutions substs2 = scope.merge(this->scope);
+	// rewrite decomposition for the alternative
+	Scope::Indices decompositionSubst = scope.merge(decomposition.getScope());
+	network.substitute(decompositionSubst);
 
-	// rewrite precondition and decomposition with the new scope
-	proposition.substitute(substs2.first);
-	network.substitute(substs2.first);
+	// hack to have later alternatives more expensives, simulates more a depth-first search
+	//cost = cost << (alternatives.size()*3);
 
-	// compute parameters indices in the alternative scope
-	Scope::Indices subst(getVariables());
-	subst.substitute(substs2.second);
-	Scope::Indices variables;
-	variables.resize(scope.getSize(), Scope::Index(-1));
-	Scope::Index index = 0;
-	for(; index < subst.size(); ++index) {
-		variables[subst[index]] = index;
-	}
-	for(size_t i = 0; i < variables.size(); ++i) {
-		if(variables[i] == Scope::Index(-1)) {
-			variables[i] = index;
-			++index;
-		}
-	}
-
-	Alternative alternative(name, scope, variables, proposition, network, cost);
+	Alternative alternative(name, scope, proposition, network, cost);
 
 	// insert the alternative
 	Alternatives::iterator position = std::lower_bound(alternatives.begin(), alternatives.end(), alternative);

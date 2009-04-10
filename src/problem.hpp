@@ -16,10 +16,6 @@ struct Problem {
 	State state;
 	TaskNetwork network; // TODO: free network's tasks upon delete
 
-private:
-
-	Scope::Indices merge(const Scope& scope);
-
 };
 
 

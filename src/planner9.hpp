@@ -20,6 +20,7 @@ struct TreeNode;
 struct Planner9 {
 
 	Planner9(const Problem& problem, std::ostream* debugStream = 0);
+	~Planner9();
 	
 	boost::optional<Plan> plan(size_t threadsCount = 1);
 	void operator()();

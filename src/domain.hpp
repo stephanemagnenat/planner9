@@ -14,36 +14,28 @@ typedef int Cost;
 struct Head {
 
 	Head(const std::string& name);
+	virtual ~Head() {}
 
 	void param(const std::string& name);
-
-	size_t getFreeVariablesCount() const { return scope.names.size() - paramsCount; }
 
 	ScopedTaskNetwork operator()(const char* first, ...) const;
 
 	const std::string name;
 	Cost minCost;
 
-	virtual void dummy() {}
-
-	const Scope& getScope() const { return scope; }
-	const Scope::Indices& getVariables() const { return variables; }
-	size_t getParamsCount() const { return paramsCount; }
+	const Scope& getParamsScope() const { return paramsScope; }
+	size_t getParamsCount() const { return paramsScope.getSize(); }
 
 	friend std::ostream& operator<<(std::ostream& os, const Head& head);
 
 protected:
 
-	Scope::Indices merge(const Scope& scope);
-
-	Scope scope;
-	Scope::Indices variables;
-	size_t paramsCount;
+	Scope paramsScope;
 
 };
 
 /// documentation test
-struct Action: Head { // TODO: allow free local variables, like in an alternative
+struct Action: Head {
 
 	Action(const std::string& name);
 
@@ -58,15 +50,16 @@ struct Action: Head { // TODO: allow free local variables, like in an alternativ
 		void substitute(const Scope::Indices& subst);
 	};
 
+	const Scope& getScope() const { return scope; }
 //	std::vector<std::pair<GroundInstance, Substitution> > groundings();
 	const CNF& getPrecondition() const { return precondition; }
 	const Effects& getEffects() const { return effects; }
 
 private:
 
-	Scope::Indices merge(const Scope& scope);
 	void effect(const ScopedProposition& atom, bool negated);
 
+	Scope scope;
 	CNF precondition;
 	Effects effects;
 
@@ -81,12 +74,11 @@ struct Method: Head {
 	struct Alternative {
 		std::string name;
 		Scope scope;
-		Scope::Indices variables;
 		CNF precondition;
 		TaskNetwork tasks; // TODO: free network's tasks upon delete
 		Cost cost;
 
-		Alternative(const std::string& name, const Scope& scope, const Scope::Indices& variables, const CNF& precondition, const TaskNetwork& tasks, Cost cost);
+		Alternative(const std::string& name, const Scope& scope, const CNF& precondition, const TaskNetwork& tasks, Cost cost);
 		bool operator<(const Alternative& that) const;
 		friend std::ostream& operator<<(std::ostream& os, const Alternative& alternative);
 		

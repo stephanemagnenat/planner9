@@ -1375,31 +1375,35 @@ struct MyProblem: MyDomain, Problem {
 		add(visible_from("objective9", "waypoint9"));
 		
 		// goals
-		goal(get_soil_data("waypoint5"));
-		/*goal(get_soil_data("waypoint13"));
-		goal(get_soil_data("waypoint4"));
-		goal(get_soil_data("waypoint23"));
-		goal(get_soil_data("waypoint15"));
-		goal(get_soil_data("waypoint7"));
-		goal(get_soil_data("waypoint20"));
-		goal(get_soil_data("waypoint26"));
-		goal(get_soil_data("waypoint2"));
-		goal(get_rock_data("waypoint27"));
-		goal(get_rock_data("waypoint19"));
-		goal(get_rock_data("waypoint1"));
-		goal(get_rock_data("waypoint3"));
-		goal(get_rock_data("waypoint7"));
-		goal(get_rock_data("waypoint20"));
-		goal(get_rock_data("waypoint22"));
-		goal(get_image_data("objective2", "low_res"));
-		goal(get_image_data("objective6", "low_res"));
-		goal(get_image_data("objective3", "low_res"));
-		goal(get_image_data("objective6", "colour"));
-		goal(get_image_data("objective3", "high_res"));
-		goal(get_image_data("objective1", "colour"));
-		goal(get_image_data("objective6", "high_res"));
-		goal(get_image_data("objective3", "colour"));
-		goal(get_image_data("objective2", "high_res"));*/
+		//goal(get_soil_data("waypoint5"));
+		//goal(do_communicate_soil_data("rover5", "general", "waypoint5", "waypoint16", "waypoint17"));
+		goal(
+			/*get_soil_data("waypoint5")
+			>> get_soil_data("waypoint13")
+			>> get_soil_data("waypoint4")
+			>>*/ get_soil_data("waypoint23")
+			>> get_soil_data("waypoint15")
+			/*>> get_soil_data("waypoint7")
+			>> get_soil_data("waypoint20")
+			>> get_soil_data("waypoint26")
+			>> get_soil_data("waypoint2")
+			>> get_rock_data("waypoint27")
+			>> get_rock_data("waypoint19")
+			>> get_rock_data("waypoint1")
+			>> get_rock_data("waypoint3")
+			>> get_rock_data("waypoint7")
+			>> get_rock_data("waypoint20")
+			>> get_rock_data("waypoint22")
+			>> get_image_data("objective2", "low_res")
+			>> get_image_data("objective6", "low_res")
+			>> get_image_data("objective3", "low_res")
+			>> get_image_data("objective6", "colour")
+			>> get_image_data("objective3", "high_res")
+			>> get_image_data("objective1", "colour")
+			>> get_image_data("objective6", "high_res")
+			>> get_image_data("objective3", "colour")
+			>> get_image_data("objective2", "high_res")*/
+		);
 		
 		/*
 		JSHOP2 solution is for single goal get_soil_data("waypoint5") is:

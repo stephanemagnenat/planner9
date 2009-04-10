@@ -1,7 +1,7 @@
 //#include "problems/basic.hpp"
 //#include "problems/mini-robots.hpp"
-//#include "problems/robots.hpp"
-#include "problems/rover.hpp"
+#include "problems/robots.hpp"
+//#include "problems/rover.hpp"
 #include "planner9.hpp"
 
 

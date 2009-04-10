@@ -42,8 +42,7 @@ struct Scope {
 	
 	friend std::ostream& operator<<(std::ostream& os, const Scope& scope);
 
-	typedef std::pair<Indices, Indices> Substitutions;
-	Substitutions merge(const Scope& that);
+	Indices merge(const Scope& that);
 
 	Names names;
 
@@ -59,7 +58,7 @@ struct Scope {
 
 private:
 
-	Substitutions merge(const Names& names2);
+	Indices merge(const Names& names2);
 
 };
 

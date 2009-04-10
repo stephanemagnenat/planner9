@@ -19,10 +19,9 @@ ScopedProposition Relation::operator()(const char* first, ...) {
 	va_end(vargs);
 
 	Scope scope(names);
-	Scope::Indices indices = scope.getIndices(names);
+	Scope::Indices indices = Scope::Indices::identity(arity);
 
-	std::auto_ptr<const Proposition> atom(new Atom(this, indices));
-	return ScopedProposition(scope, atom);
+	return ScopedProposition(scope, new Atom(this, indices));
 }
 
 bool Relation::check(const Atom& atom, const State& state) const {
@@ -196,16 +195,16 @@ EqualityRelation::EqualityRelation():
 	Relation("=", 2) {
 }
 
-bool EqualityRelation::check(const Atom& atom, const State& state) const {
+bool EqualityRelation::check(const Atom& atom, const State& /*state*/) const {
 	assert(atom.params.size() == 2);
 	return atom.params[0] == atom.params[1];
 }
 
-void EqualityRelation::set(const Literal& literal, State& state) const {
+void EqualityRelation::set(const Literal& /*literal*/, State& /*state*/) const {
 	assert(false);
 }
 
-void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Scope::Indices& subst) const {
+void EqualityRelation::groundIfUnique(const Atom& atom, const State& /*state*/, const size_t constantsCount, Scope::Indices& subst) const {
 	// ground with self
 	const Scope::Index p0 = atom.params[0];
 	const Scope::Index p1 = atom.params[1];
@@ -227,7 +226,7 @@ void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, cons
 	}
 }
 
-Relation::VariablesRanges EqualityRelation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
+Relation::VariablesRanges EqualityRelation::getRange(const Atom& atom, const State& /*state*/, const size_t constantsCount) const {
 	const Scope::Index p0 = atom.params[0];
 	const Scope::Index p1 = atom.params[1];
 	VariablesRanges atomRanges;
