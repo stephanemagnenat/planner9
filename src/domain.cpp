@@ -139,7 +139,7 @@ void Method::alternative(const std::string& name, const ScopedProposition& preco
 	network.substitute(decompositionSubst);
 
 	// hack to have later alternatives more expensives, simulates more a depth-first search
-	//cost = cost << (alternatives.size()*3);
+	//cost = cost << (alternatives.size()*1);
 
 	Alternative alternative(name, scope, proposition, network, cost);
 

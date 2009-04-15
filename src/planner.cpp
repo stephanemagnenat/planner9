@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 
 	boost::optional<Plan> plan = planner.plan(threadsCount);
 	if(plan) {
-		std::cout << "plan: " << *plan << std::endl;
+		std::cout << "plan:\n" << *plan << std::endl;
 	} else {
 		std::cout << "no plan." << std::endl;
 	}
