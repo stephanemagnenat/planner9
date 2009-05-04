@@ -39,7 +39,7 @@ std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
 	os << "after " << node.plan << std::endl;
 	os << "do " << node.network << std::endl;
 	os << "such that " << node.preconditions << std::endl;
-	os << "knowing " << node.state << std::endl;
+	//os << "knowing " << node.state << std::endl;
 	return os;
 }
 
@@ -49,6 +49,11 @@ Planner9::Planner9(const Problem& problem, std::ostream* debugStream):
 	iterationCount(0),
 	debugStream(debugStream),
 	workingThreadCount(0) {
+}
+
+Planner9::~Planner9() {
+	for (Nodes::iterator it = nodes.begin(); it != nodes.end(); ++it)
+		delete it->second;
 }
 
 // HTN: procedure SHOP2(s, T, D)
@@ -145,7 +150,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 			TaskNetwork newNetwork = network.erase(taskIt);
 
-			Substitution subst = t->getSubstitution(action->getVariables(), allocatedVariablesCount);
+			Substitution subst = t->getSubstitution(action->getScope().getSize(), allocatedVariablesCount);
 			size_t newAllocatedVariablesCount = allocatedVariablesCount + action->getScope().getSize() - head->getParamsCount();
 
 			CNF newPreconditions(action->getPrecondition());
@@ -344,7 +349,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			for (Method::Alternatives::const_iterator altIt = method->alternatives.begin(); altIt != method->alternatives.end(); ++altIt) {
 				const Method::Alternative& alternative = *altIt;
 
-				Substitution subst = t->getSubstitution(alternative.variables, allocatedVariablesCount);
+				Substitution subst = t->getSubstitution(alternative.scope.getSize(), allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
 				if (debugStream) *debugStream << "* alternative " << alternative.name << std::endl;

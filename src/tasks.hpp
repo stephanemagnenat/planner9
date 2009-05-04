@@ -28,12 +28,13 @@ struct Task {
 
 	friend std::ostream& operator<<(std::ostream& os, const Task& task);
 
-	Substitution getSubstitution(const Variables& variables, Variable::Index nextVariableIndex) const;
+	Substitution getSubstitution(const size_t taskScopeSize, const Variable::Index nextVariableIndex) const;
 
 };
 
 struct TaskNetwork {
 
+	~TaskNetwork();
 	TaskNetwork clone() const;
 	void substitute(const Substitution& subst);
 	TaskNetwork operator>>(const TaskNetwork& that) const;

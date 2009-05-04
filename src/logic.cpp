@@ -48,6 +48,7 @@ OptionalVariables Atom::unify(const Atom& atom, const size_t constantsCount, con
 			if (variable != stateVariable)
 				return false;
 		} else {
+			assert(variable.index < unifyingSubst.size());
 			Variable& substitutionVariable = unifyingSubst[variable.index];
 			if (substitutionVariable != variable) {
 				if (substitutionVariable != stateVariable)
@@ -80,13 +81,16 @@ std::ostream& operator<<(std::ostream& os, const Atom& atom) {
 }
 
 
-Not::Not(std::auto_ptr<Proposition> proposition):
+Not::Not(Proposition* proposition):
 	proposition(proposition) {
 }
 
+Not::~Not() {
+	delete proposition;
+}
+
 Not* Not::clone() const {
-	std::auto_ptr<Proposition> proposition(this->proposition->clone());
-	return new Not(proposition);
+	return new Not(proposition->clone());
 }
 
 CNF Not::cnf() const {
@@ -126,6 +130,12 @@ Or::Or(const Propositions& propositions):
 	propositions(propositions) {
 }
 
+Or::~Or() {
+	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
+		delete *it;
+	}
+}
+
 Or* Or::clone() const {
 	Propositions propositions;
 	propositions.reserve(this->propositions.size());
@@ -162,6 +172,12 @@ And::And(const Propositions& propositions):
 	propositions(propositions) {
 }
 
+And::~And() {
+	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
+		delete *it;
+	}
+}
+
 And* And::clone() const {
 	Propositions propositions;
 	propositions.reserve(this->propositions.size());
@@ -174,7 +190,7 @@ And* And::clone() const {
 
 CNF And::cnf() const {
 	CNF result;
-	for(Propositions::const_iterator it = this->propositions.begin(); it != this->propositions.end(); ++it) {
+	for(Propositions::const_iterator it = propositions.begin(); it != propositions.end(); ++it) {
 		const Proposition* proposition = *it;
 		result += proposition->cnf();
 	}
@@ -462,7 +478,7 @@ ScopedProposition::ScopedProposition():
 	proposition(new CNF) {
 }
 
-ScopedProposition::ScopedProposition(const Scope& scope, std::auto_ptr<const Proposition> proposition):
+ScopedProposition::ScopedProposition(const Scope& scope, const Proposition* proposition):
 	scope(scope),
 	proposition(proposition) {
 }
@@ -472,39 +488,36 @@ ScopedProposition::ScopedProposition(const ScopedProposition& proposition):
 	proposition(proposition.proposition->clone()) {
 }
 
+ScopedProposition::~ScopedProposition() {
+	delete proposition;
+}
+
 ScopedProposition ScopedProposition::operator!() const {
-	std::auto_ptr<Proposition> proposition(this->proposition->clone());
-	std::auto_ptr<const Proposition> negation(new Not(proposition));
-	ScopedProposition result(scope, negation);
-	return result;
+	return ScopedProposition(scope, new Not(proposition->clone()));
 }
 
 ScopedProposition ScopedProposition::operator&&(const ScopedProposition& that) const {
 	Scope scope(this->scope);
-	Substitutions substs = scope.merge(that.scope);
+	Substitution subst = scope.merge(that.scope);
 	Proposition* left = this->proposition->clone();
 	Proposition* right = that.proposition->clone();
-	left->substitute(substs.first);
-	right->substitute(substs.second);
+	right->substitute(subst);
 	And::Propositions propositions;
 	propositions.push_back(left);
 	propositions.push_back(right);
-	std::auto_ptr<const Proposition> result(new And(propositions));
-	return ScopedProposition(scope, result);
+	return ScopedProposition(scope, new And(propositions));
 }
 
 ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) const {
 	Scope scope(this->scope);
-	Substitutions substs = scope.merge(that.scope);
+	Substitution subst = scope.merge(that.scope);
 	Proposition* left = this->proposition->clone();
 	Proposition* right = that.proposition->clone();
-	left->substitute(substs.first);
-	right->substitute(substs.second);
+	right->substitute(subst);
 	Or::Propositions propositions;
 	propositions.push_back(left);
 	propositions.push_back(right);
-	std::auto_ptr<const Proposition> result(new Or(propositions));
-	return ScopedProposition(scope, result);
+	return ScopedProposition(scope, new Or(propositions));
 }
 
 ScopedProposition True;

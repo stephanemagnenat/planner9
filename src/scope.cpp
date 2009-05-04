@@ -35,7 +35,6 @@ Scope::Scope(const Name& name):
 
 Scope::Scope(const Names& names):
 	names(names) {
-	std::sort(this->names.begin(), this->names.end());
 }
 
 Scope::Name Scope::getName(const Variable& variable) const {
@@ -55,7 +54,7 @@ Variables Scope::getVariables(const Names& names) const {
 	Names::const_iterator end = this->names.end();
 
 	for(Names::const_iterator it = names.begin(); it != names.end(); ++it) {
-		Names::const_iterator found = std::lower_bound(begin, end, *it);
+		Names::const_iterator found = std::find(begin, end, *it);
 		assert(found != end);
 		result.push_back(Variable(found - begin));
 	}
@@ -71,50 +70,19 @@ std::ostream& operator<<(std::ostream& os, const Scope& scope) {
 	return os;
 }
 
-Substitutions Scope::merge(const Scope& that) {
-	const Names& names2 = that.names;
+Substitution Scope::merge(const Scope& that) {
+	Substitution subst;
+	subst.reserve(that.getSize());
 
-	Substitution subst, subst2;
-	Names result;
-
-	Names::const_iterator begin, end;
-	Names::const_iterator begin2, end2;
-
-	begin = names.begin();
-	end = names.end();
-	begin2 = names2.begin();
-	end2 = names2.end();
-
-	for(Names::const_iterator it = begin, it2 = begin2; (it != end) || (it2 != end2);) {
-		int cmp;
-		if (it2 == end2) {
-			cmp = -1;
-		} else if (it == end) {
-			cmp = +1;
-		} else {
-			cmp = it->compare(*it2);
-		}
-
-		Variable variable(result.size());
-		if (cmp <= 0) {
-			result.push_back(*it);
-		} else {
-			result.push_back(*it2);
-		}
-
-		if (cmp <= 0) {
-			subst.push_back(variable);
-			++it;
-		}
-		if (cmp >= 0) {
-			subst2.push_back(variable);
-			++it2;
+	for(Names::const_iterator it = that.names.begin(); it != that.names.end(); ++it) {
+		Names::const_iterator found = std::find(names.begin(), names.end(), *it);
+		subst.push_back(Substitution::value_type(found - names.begin()));
+		if(found == names.end()) {
+			names.push_back(*it);
 		}
 	}
 
-	std::swap(names, result);
-
-	return make_pair(subst, subst2);
+	return subst;
 }
 
 Scope::SetScope Scope::setScope(const Scope& scope) {

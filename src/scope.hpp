@@ -21,7 +21,7 @@ struct Scope {
 
 	friend std::ostream& operator<<(std::ostream& os, const Scope& scope);
 
-	Substitutions merge(const Scope& that);
+	Substitution merge(const Scope& that);
 
 	Names names;
 

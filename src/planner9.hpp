@@ -20,10 +20,11 @@ struct TreeNode;
 struct Planner9 {
 
 	Planner9(const Problem& problem, std::ostream* debugStream = 0);
-	
+	~Planner9();
+
 	boost::optional<Plan> plan(size_t threadsCount = 1);
 	void operator()();
-	
+
 private:
 	bool step();
 	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
@@ -40,7 +41,7 @@ private:
 	std::ostream *debugStream;
 	size_t workingThreadCount;
 	boost::mutex mutex;
-	boost::condition condition;
+	boost::condition_variable condition;
 };
 
 

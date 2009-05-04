@@ -12,8 +12,10 @@ struct MyDomain {
 	Relation robots, object, resource, area;
 	EquivalentRelation isConnectable, isConnected;
 	Relation isIn;
+	Relation recursionBlock;
 
 	Action moveObject, setConnected, makeRamp;
+	Action setRecursionBlock, clearRecursionBlock;
 	Method connectArea, moveWithRobots, move;
 
 	MyDomain();
@@ -28,9 +30,14 @@ MyDomain::MyDomain():
 	isConnectable("isConnectable"),
 	isConnected("isConnected"),
 	isIn("isIn", 2),
+	recursionBlock("recursionBlock", 2),
+	
 	moveObject("moveObject"),
 	setConnected("setConnected"),
 	makeRamp("makeRamp"),
+	setRecursionBlock("setRecursionBlock"),
+	clearRecursionBlock("clearRecursionBlock"),
+	
 	connectArea("connectArea"),
 	moveWithRobots("moveWithRobots"),
 	move("move") {
@@ -69,6 +76,14 @@ MyDomain::MyDomain():
 		resource("res")
 	);
 	makeRamp.add(isConnected("d",  "s"));
+	
+	setRecursionBlock.param("d");
+	setRecursionBlock.param("s");
+	setRecursionBlock.add(recursionBlock("d", "s"));
+	
+	clearRecursionBlock.param("d");
+	clearRecursionBlock.param("s");
+	clearRecursionBlock.del(recursionBlock("d", "s"));
 
 	connectArea.param("d");
 	connectArea.param("s");
@@ -105,8 +120,10 @@ MyDomain::MyDomain():
 		area("resa") &&
 		isIn("res", "resa") &&
 		isConnectable("s", "d") &&
-		!isConnected("s", "d"),
-		connectArea("s", "roba") >> connectArea("s", "resa") >> connectArea("d", "s")
+		!isConnected("s", "d") /*&&
+		!recursionBlock("d", "s")*/,
+		/*setRecursionBlock("d", "s") >>*/ connectArea("s", "roba") >> connectArea("s", "resa") >> connectArea("d", "s") /*>> clearRecursionBlock("d", "s")*/,
+		2
 	);
 	connectArea.alternative(
 		"recursion on target",
@@ -115,8 +132,10 @@ MyDomain::MyDomain():
 		area("t") &&
 		!equals("t", "s") &&
 		!equals("t", "d") &&
-		!isConnected("s", "d"),
-		connectArea("t", "s") >> connectArea("d", "t") >> setConnected("s", "d")
+		!isConnected("s", "d") /*&&
+		!recursionBlock("d", "s")*/,
+		/*setRecursionBlock("d", "s") >>*/ connectArea("t", "s") >> connectArea("d", "t") >> setConnected("s", "d") /*>> clearRecursionBlock("d", "s")*/,
+		2
 	);
 
 	moveWithRobots.param("o");
@@ -171,20 +190,20 @@ struct MyProblem: MyDomain, Problem {
 		add(area("a3"));
 		add(area("a4"));
 		add(area("a5"));
+		add(area("a6"));
 		add(isConnectable("a0", "a5"));
 		add(isConnectable("a0", "a1"));
 		add(isConnectable("a1", "a2"));
 		add(isConnectable("a2", "a3"));
+		add(isConnectable("a2", "a6"));
 		add(isConnectable("a3", "a4"));
-		//add(isConnectable("a0", "a3"));
-		//add(isConnectable("a0", "a2"));
 		add(isIn("o0", "a0"));
 		add(isIn("o1", "a2"));
 		add(isIn("r0", "a1"));
-		add(isIn("r1", "a2"));
-		add(isIn("nut0", "a1"));
-		add(isIn("nut1", "a3"));
-		goal(move("o0", "a4")/* >> move("o0", "a0")*/);
+		add(isIn("r1", "a6"));
+		add(isIn("nut0", "a5"));
+		add(isIn("nut1", "a6"));
+		goal(move("o0", "a4")/* >> move("o0", "a5")*/);
 	}
 
 };

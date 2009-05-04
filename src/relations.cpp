@@ -19,15 +19,14 @@ ScopedProposition Relation::operator()(const char* first, ...) {
 	va_end(vargs);
 
 	Scope scope(names);
-	Variables variables = scope.getVariables(names);
+	Variables variables = Variables::identity(arity);
 
-	std::auto_ptr<const Proposition> atom(new Atom(this, variables));
-	return ScopedProposition(scope, atom);
+	return ScopedProposition(scope, new Atom(this, variables));
 }
 
 bool Relation::check(const Atom& atom, const State& state) const {
 	assert(atom.params.size() == arity);
-	return state.find(atom) != state.end();
+	return state.contains(atom);
 }
 
 void Relation::set(const Literal& literal, State& state) const {
@@ -40,13 +39,17 @@ void Relation::set(const Literal& literal, State& state) const {
 
 void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
 	OptionalVariables unifier;
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		OptionalVariables newUnifier = it->unify(atom, constantsCount, subst);
-		if (newUnifier) {
-			if (unifier) {
-				return;
-			} else {
-				unifier = newUnifier;
+	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
+	if (it != state.atoms.end()) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			const Atom& stateAtom = *jt;
+			OptionalVariables newUnifier = stateAtom.unify(atom, constantsCount, subst);
+			if (newUnifier) {
+				if (unifier) {
+					return;
+				} else {
+					unifier = newUnifier;
+				}
 			}
 		}
 	}
@@ -64,9 +67,10 @@ Relation::VariablesRanges Relation::getRange(const Atom& atom, const State& stat
 			atomRanges[variable] = VariableRange(constantsCount, false);
 	}
 
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		const Atom& stateAtom = *it;
-		if (stateAtom.relation == this) {
+	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
+	if (it != state.atoms.end()) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			const Atom& stateAtom = *jt;
 			assert(arity == stateAtom.params.size());
 			for (size_t j = 0; j < arity; ++j) {
 				const Variable& constant = stateAtom.params[j];
@@ -119,11 +123,16 @@ void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, co
 	Atom inverseAtom(createAtom(p1, p0));
 
 	// if present in the state, then not unique
-	for (State::const_iterator it = state.begin(); it != state.end(); ++it) {
-		if (it->unify(atom, constantsCount, subst))
-			return;
-		if (it->unify(inverseAtom, constantsCount, subst))
-			return;
+	// FIXME: is it cleaner to use this or atom.relation in the lookup?
+	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
+	if (it != state.atoms.end()) {
+		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
+			const Atom& stateAtom = *jt;
+			if (stateAtom.unify(atom, constantsCount, subst))
+				return;
+			if (stateAtom.unify(inverseAtom, constantsCount, subst))
+				return;
+		}
 	}
 
 	// ground with self
@@ -186,16 +195,16 @@ EqualityRelation::EqualityRelation():
 	Relation("=", 2) {
 }
 
-bool EqualityRelation::check(const Atom& atom, const State& state) const {
+bool EqualityRelation::check(const Atom& atom, const State& /*state*/) const {
 	assert(atom.params.size() == 2);
 	return atom.params[0] == atom.params[1];
 }
 
-void EqualityRelation::set(const Literal& literal, State& state) const {
+void EqualityRelation::set(const Literal& /*literal*/, State& /*state*/) const {
 	assert(false);
 }
 
-void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
+void EqualityRelation::groundIfUnique(const Atom& atom, const State& /*state*/, const size_t constantsCount, Substitution& subst) const {
 	// ground with self
 	const Variable& p0 = atom.params[0];
 	const Variable& p1 = atom.params[1];
@@ -217,9 +226,9 @@ void EqualityRelation::groundIfUnique(const Atom& atom, const State& state, cons
 	}
 }
 
-Relation::VariablesRanges EqualityRelation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
-	const Variable& p0 = atom.params[0];
-	const Variable& p1 = atom.params[1];
+Relation::VariablesRanges EqualityRelation::getRange(const Atom& atom, const State& /*state*/, const size_t constantsCount) const {
+	const Variable p0 = atom.params[0];
+	const Variable p1 = atom.params[1];
 	VariablesRanges atomRanges;
 
 	if (p0.index < constantsCount) {

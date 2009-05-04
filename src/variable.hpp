@@ -28,7 +28,6 @@ typedef std::set<Variable> VariableSet;
 
 struct Variables;
 typedef Variables Substitution;
-typedef std::pair<Substitution, Substitution> Substitutions;
 
 struct Variables: std::vector<Variable> {
 

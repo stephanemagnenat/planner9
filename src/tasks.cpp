@@ -18,15 +18,13 @@ std::ostream& operator<<(std::ostream& os, const Task& task) {
 	return os << task.head->name << "(" << task.params << ")";
 }
 
-Substitution Task::getSubstitution(const Variables& variables, Variable::Index nextVariableIndex) const {
+Substitution Task::getSubstitution(const size_t taskScopeSize, const Variable::Index nextVariableIndex) const {
 	Substitution subst(params);
-	size_t newVariables = variables.size() - params.size();
+	size_t newVariables = taskScopeSize - params.size();
 	for(size_t i = 0; i < newVariables; ++i) {
 		subst.push_back(Variable(nextVariableIndex + i));
 	}
-	Substitution result(variables);
-	result.substitute(subst);
-	return result;
+	return subst;
 }
 
 
@@ -37,6 +35,17 @@ struct Clone {
 };
 TaskNetwork TaskNetwork::clone() const {
 	return rewrite(Clone());
+}
+
+TaskNetwork::~TaskNetwork() {
+	/*
+	// TODO: prevent leak in task network
+	// ... but do not destroy things multiple times as this code does now
+	for (Tasks::iterator it = first.begin(); it != first.end(); ++it)
+		delete *it;
+	for (Predecessors::iterator it = predecessors.begin(); it != predecessors.end(); ++it)
+		delete it->first;
+	*/
 }
 
 struct Substitute {
@@ -235,10 +244,9 @@ ScopedTaskNetwork::ScopedTaskNetwork(const Scope& scope, const TaskNetwork& netw
 
 ScopedTaskNetwork ScopedTaskNetwork::operator>>(const ScopedTaskNetwork& that) const {
 	Scope scope(this->scope);
-	Substitutions substs = scope.merge(that.scope);
+	Substitution subst = scope.merge(that.scope);
 	TaskNetwork head(this->network.clone());
-	head.substitute(substs.first);
 	TaskNetwork tail(that.network.clone());
-	tail.substitute(substs.second);
+	tail.substitute(subst);
 	return ScopedTaskNetwork(scope, head >> tail);
 }
