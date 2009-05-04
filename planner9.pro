@@ -15,7 +15,8 @@ SOURCES += src/domain.cpp \
     src/problem.cpp \
     src/relations.cpp \
     src/scope.cpp \
-    src/tasks.cpp
+    src/tasks.cpp \
+    src/variable.cpp
 HEADERS += src/domain.hpp \
     src/logic.hpp \
     src/plan.hpp \
@@ -27,5 +28,6 @@ HEADERS += src/domain.hpp \
     src/problems/robots.hpp \
     src/problems/basic.hpp \
     src/state.hpp \
+    src/variable.hpp \
     src/problems/mini-robots.hpp \
     src/problems/rover.hpp
