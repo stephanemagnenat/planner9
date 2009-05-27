@@ -2,7 +2,7 @@
 //#include "problems/mini-robots.hpp"
 #include "problems/robots.hpp"
 //#include "problems/rover.hpp"
-#include "planner9.hpp"
+#include "planner9-threaded.hpp"
 
 
 using namespace std;
@@ -40,9 +40,9 @@ int main(int argc, char* argv[]) {
 	if (dump)
 		*dump << Scope::setScope(problem.scope);
 	
-	Planner9 planner(problem, dump);
+	ThreadedPlanner9 planner(problem, threadsCount, dump);
 
-	boost::optional<Plan> plan = planner.plan(threadsCount);
+	boost::optional<Plan> plan = planner.plan();
 	if(plan) {
 		std::cout << "plan:\n" << *plan << std::endl;
 	} else {

@@ -1,48 +1,48 @@
-#ifndef SHOP2_HPP_
-#define SHOP2_HPP_
+#ifndef PLANNER9_HPP_
+#define PLANNER9_HPP_
 
 
 #include "plan.hpp"
-#include <boost/optional.hpp>
-#include <boost/thread.hpp>
-#include <set>
-#include <map>
+#include "logic.hpp"
+#include "domain.hpp"
 #include <iostream>
 
 
 struct Problem;
-struct State;
-struct TaskNetwork;
-struct CNF;
-typedef int Cost;
-struct TreeNode;
+
 
 struct Planner9 {
 
 	Planner9(const Problem& problem, std::ostream* debugStream = 0);
-	~Planner9();
 	
-	boost::optional<Plan> plan(size_t threadsCount = 1);
-	void operator()();
+	typedef int Cost;
+	// nodes in our search tree
+	struct SearchNode {
+		SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
+		friend std::ostream& operator<<(std::ostream& os, const SearchNode& node);
+		
+		const Plan plan;
+		const TaskNetwork network; // T
+		const size_t allocatedVariablesCount;
+		const Cost cost;
+		const CNF preconditions;
+		const State state;
+	};
 	
-private:
-	bool step();
-	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
+protected:
+	void visitNode(const SearchNode* node);
 	void addNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
-	void success(const Plan& plan);
+	virtual void addNode(SearchNode* node) = 0;
+	virtual void success(const Plan& plan) = 0;
 
-	typedef std::multimap<Cost, TreeNode*> Nodes;
-	typedef std::vector<Plan> Plans;
+private:
+	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 
+protected:
 	const Problem& problem;
-	Nodes nodes;
-	Plans plans;
-	size_t iterationCount;
-	std::ostream *debugStream;
-	size_t workingThreadCount;
-	boost::mutex mutex;
-	boost::condition condition;
+	std::ostream*const debugStream;
+
 };
 
 
-#endif // SHOP2_HPP_
+#endif // PLANNER9_HPP_

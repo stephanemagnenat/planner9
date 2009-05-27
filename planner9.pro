@@ -11,11 +11,12 @@ SOURCES += src/domain.cpp \
     src/logic.cpp \
     src/plan.cpp \
     src/planner9.cpp \
-    src/planner.cpp \
     src/problem.cpp \
     src/relations.cpp \
     src/scope.cpp \
-    src/tasks.cpp
+    src/tasks.cpp \
+    src/main.cpp \
+    src/planner9-threaded.cpp
 HEADERS += src/domain.hpp \
     src/logic.hpp \
     src/plan.hpp \
@@ -28,4 +29,6 @@ HEADERS += src/domain.hpp \
     src/problems/basic.hpp \
     src/state.hpp \
     src/problems/mini-robots.hpp \
-    src/problems/rover.hpp
+    src/problems/rover.hpp \
+    src/planner.hpp \
+    src/planner9-threaded.hpp

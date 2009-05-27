@@ -1,7 +1,5 @@
 #include "planner9.hpp"
-#include "domain.hpp"
 #include "problem.hpp"
-#include "logic.hpp"
 #include "relations.hpp"
 #include <iostream>
 #include <set>
@@ -12,20 +10,7 @@
 #endif
 
 
-// nodes in our search tree
-struct TreeNode {
-	TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
-	friend std::ostream& operator<<(std::ostream& os, const TreeNode& node);
-	
-	const Plan plan;
-	const TaskNetwork network; // T
-	const size_t allocatedVariablesCount;
-	const Cost cost;
-	const CNF preconditions;
-	const State state;
-};
-
-TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
+Planner9::SearchNode::SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
 	plan(plan),
 	network(network),
 	allocatedVariablesCount(allocatedVariablesCount),
@@ -34,7 +19,7 @@ TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocate
 	state(state) {
 }
 
-std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
+std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 	os << "node " << (&node) << " costs " << node.cost << std::endl;
 	os << "after " << node.plan << std::endl;
 	os << "do " << node.network << std::endl;
@@ -46,80 +31,14 @@ std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
 
 Planner9::Planner9(const Problem& problem, std::ostream* debugStream):
 	problem(problem),
-	iterationCount(0),
-	debugStream(debugStream),
-	workingThreadCount(0) {
+	debugStream(debugStream) {
 }
 
-Planner9::~Planner9() {
-	for (Nodes::iterator it = nodes.begin(); it != nodes.end(); ++it)
-		delete it->second;
-}
-
-// HTN: procedure SHOP2(s, T, D)
-boost::optional<Plan> Planner9::plan(size_t threadsCount) {
-	// HTN: P = the empty plan
-	addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
-	
-	boost::mutex::scoped_lock lock(mutex);
-
-	boost::thread_group threads;
-	for (size_t i = 0; i < threadsCount; ++i) {
-		threads.create_thread(boost::ref(*this));
-		workingThreadCount++;
-	}
-	
-	lock.unlock();
-	threads.join_all();
-	
-	std::cout << "Terminated after " << iterationCount << " iterations" << std::endl;
-
-	if(plans.empty())
-		return false;
-	else
-		return plans.front();
-}
-
-bool Planner9::step() {
-	boost::mutex::scoped_lock lock(mutex);
-	workingThreadCount--;
-	
-	do {
-		if (!plans.empty())
-			return false;
-		if (nodes.empty()) {
-			if(workingThreadCount == 0)
-				return false;
-			else
-				condition.wait(lock);
-		}
-	} while (nodes.empty() || !plans.empty());
-	
-	Nodes::iterator front = nodes.begin();
-	TreeNode* node = front->second;
-	nodes.erase(front);
-	
-	workingThreadCount++;
-	lock.unlock();
-
-	if (debugStream)
-		*debugStream << "- " << *node << std::endl;
-	
-	visitNode(node->plan, node->network, node->allocatedVariablesCount, node->cost, node->preconditions, node->state);
-
-	
-	delete node;
-	return true;
-}
-
-void Planner9::operator()() {
-	// HTN: loop
-	while (step()) {}
+void Planner9::visitNode(const SearchNode* n) {
+	visitNode(n->plan, n->network, n->allocatedVariablesCount, n->cost, n->preconditions, n->state);
 }
 
 void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
-	++iterationCount;
-
 	// HTN: T0 ← {t ∈ T : no other task in T is constrained to precede t}
 	const Tasks& t0 = network.first;
 	// HTN: if T = ∅ then return P
@@ -390,21 +309,6 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 	}
 }
 
-void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
-	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions, state);
-
-	cost += network.getSize();
-	
-	if (debugStream)
-		*debugStream << "+ " << *node << std::endl;
-
-	boost::mutex::scoped_lock lock(mutex);
-	nodes.insert(Nodes::value_type(cost, node));
-	condition.notify_one();
-}
-
-void Planner9::success(const Plan& plan) {
-	boost::mutex::scoped_lock lock(mutex);
-	plans.push_back(plan);
-	condition.notify_all();
+void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
+	addNode(new SearchNode(plan, network, freeVariablesCount, cost, preconditions, state));
 }
