@@ -12,6 +12,6 @@ void Problem::add(const ScopedProposition& scopedAtom) {
 
 void Problem::goal(const ScopedTaskNetwork& goal) {
 	Scope::Indices subst(scope.merge(goal.getScope()));
-	network = goal.getNetwork().clone();
+	network = goal.getNetwork();
 	network.substitute(subst);
 }

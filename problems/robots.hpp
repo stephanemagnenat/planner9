@@ -7,7 +7,7 @@
 #include "../core/relations.hpp"
 
 
-struct MyDomain {
+struct MyDomain: Domain {
 
 	Relation robots, object, resource, area;
 	EquivalentRelation isConnectable, isConnected;
@@ -23,24 +23,24 @@ struct MyDomain {
 };
 
 MyDomain::MyDomain():
-	robots("robots", 1),
-	object("object", 1),
-	resource("resource", 1),
-	area("area", 1),
-	isConnectable("isConnectable"),
-	isConnected("isConnected"),
-	isIn("isIn", 2),
-	recursionBlock("recursionBlock", 2),
+	robots(this, "robots", 1),
+	object(this, "object", 1),
+	resource(this, "resource", 1),
+	area(this, "area", 1),
+	isConnectable(this, "isConnectable"),
+	isConnected(this, "isConnected"),
+	isIn(this, "isIn", 2),
+	recursionBlock(this, "recursionBlock", 2),
 	
-	moveObject("moveObject"),
-	setConnected("setConnected"),
-	makeRamp("makeRamp"),
-	setRecursionBlock("setRecursionBlock"),
-	clearRecursionBlock("clearRecursionBlock"),
+	moveObject(this, "moveObject"),
+	setConnected(this, "setConnected"),
+	makeRamp(this, "makeRamp"),
+	setRecursionBlock(this, "setRecursionBlock"),
+	clearRecursionBlock(this, "clearRecursionBlock"),
 	
-	connectArea("connectArea"),
-	moveWithRobots("moveWithRobots"),
-	move("move") {
+	connectArea(this, "connectArea"),
+	moveWithRobots(this, "moveWithRobots"),
+	move(this, "move") {
 
 	moveObject.param("o");
 	moveObject.param("d");
@@ -164,17 +164,6 @@ MyDomain::MyDomain():
 	);
 }
 
-/*
-  to cite:
-  Efﬁciently handling temporal knowledge in an HTN planner∗
-  A planning architecture for mobile robotics
-  Planning for a Mobile Robot to Attend a Conference
-  Bringing Users and Planning Technology Together. Experiences in SIADEX
-  SHOP2: An HTN Planning System: http://www.jair.org/media/1141/live-1141-2152-jair.pdf
-	  
-	 problems for ICP3/ICAPS2002 http://planning.cis.strath.ac.uk/competition/
- */
-
 struct MyProblem: MyDomain, Problem {
 
 	MyProblem() {
@@ -200,9 +189,9 @@ struct MyProblem: MyDomain, Problem {
 		add(isIn("o0", "a0"));
 		add(isIn("o1", "a2"));
 		add(isIn("r0", "a1"));
-		add(isIn("r1", "a6"));
-		add(isIn("nut0", "a5"));
-		add(isIn("nut1", "a6"));
+		//add(isIn("r1", "a6"));
+		add(isIn("nut0", "a1"));
+		//add(isIn("nut1", "a6"));
 		goal(move("o0", "a4")/* >> move("o0", "a5")*/);
 	}
 

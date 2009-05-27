@@ -4,10 +4,9 @@
 #include <set>
 
 
-Task::Task(const Head* head, const Scope::Indices& params, const Tasks& successors):
+Task::Task(const Head* head, const Scope::Indices& params):
 	head(head),
-	params(params),
-	successors(successors) {
+	params(params) {
 }
 
 void Task::substitute(const Scope::Indices& subst) {
@@ -27,179 +26,128 @@ Scope::Indices Task::getSubstitution(const size_t taskScopeSize, const Scope::In
 	return subst;
 }
 
-
-struct Clone {
-	Task* operator()(const Task* task) const {
-		return new Task(*task);
-	}
-};
-TaskNetwork TaskNetwork::clone() const {
-	return rewrite(Clone());
-}
+// TODO: add copy constructor
+// TODO: add copy operator
 
 TaskNetwork::~TaskNetwork() {
-	/*
-	// TODO: prevent leak in task network
-	// ... but do not destroy things multiple times as this code does now
 	for (Tasks::iterator it = first.begin(); it != first.end(); ++it)
-		delete *it;
+		 delete *it;
 	for (Predecessors::iterator it = predecessors.begin(); it != predecessors.end(); ++it)
 		delete it->first;
-	*/
 }
 
-struct Substitute {
-	Substitute(const Scope::Indices& subst): subst(subst) {}
-	Task* operator()(const Task* task) const {
-		Task* clone = new Task(*task);
-		clone->substitute(subst);
-		return clone;
-	}
-	const Scope::Indices& subst;
-};
 void TaskNetwork::substitute(const Scope::Indices& subst) {
-	*this = rewrite(Substitute(subst));
+	for(Tasks::iterator it = first.begin(); it != first.end(); ++it) {
+		(*it)->task.substitute(subst);
+	}
+	for(Predecessors::iterator it = predecessors.begin(); it != predecessors.end(); ++it) {
+		it->first->task.substitute(subst);
+	}
 }
 
-struct Sequence {
-	Sequence(const Tasks& successors, size_t& predecessors): successors(successors), predecessors(predecessors) {}
-	Task* operator()(const Task* task) const {
-		Task* result = new Task(*task);
-		if(result->successors.empty()) {
-			result->successors.assign(successors.begin(), successors.end());
-			++predecessors;
-		}
-		return result;
-	}
-	const Tasks& successors;
-	size_t& predecessors;
-};
 TaskNetwork TaskNetwork::operator>>(const TaskNetwork& that) const {
-	size_t predecessorsCount = 0;
-
-	TaskNetwork result = rewrite(Sequence(that.first, predecessorsCount));
-	if(predecessorsCount == 0) {
-		result.first = that.first;
+	TaskNetwork thisCopy(*this);
+	TaskNetwork thatCopy(that);
+	
+	size_t lasts = 0;
+	for(Tasks::const_iterator it = thisCopy.first.begin(); it != thisCopy.first.end(); ++it) {
+		Node* node(*it);
+		if (node->successors.empty()) {
+			++lasts;
+			node->successors = thatCopy.first;
+		}
 	}
-
-	result.predecessors.insert(that.predecessors.begin(), that.predecessors.end());
-	for(Tasks::const_iterator it = that.first.begin(); it != that.first.end(); ++it) {
-		result.predecessors[*it] = predecessorsCount;
+	for(Predecessors::const_iterator it = thisCopy.predecessors.begin(); it != thisCopy.predecessors.end(); ++it) {
+		Node* node(it->first);
+		if (node->successors.empty()) {
+			++lasts;
+			node->successors = thatCopy.first;
+		}
 	}
+	
+	for(Tasks::const_iterator it = thatCopy.first.begin(); it != thatCopy.first.end(); ++it) {
+		Node* node(*it);
+		thisCopy.predecessors[node] = lasts;
+	}
+	thisCopy.predecessors.insert(thatCopy.predecessors.begin(), thatCopy.predecessors.end());
+	
+	thatCopy.first.clear();
+	thatCopy.predecessors.clear();
 
-	return result;
+	return thisCopy;
 }
 
-TaskNetwork TaskNetwork::erase(Tasks::const_iterator position) const {
-	TaskNetwork result;
-	result.predecessors = predecessors;
+void TaskNetwork::erase(size_t position) {
+	Node* node = first[position];
+	for (Tasks::const_iterator it = node->successors.begin(); it != node->successors.end(); ++it) {
+		Node* successor(*it);
+		Predecessors::iterator preIt = predecessors.find(successor);
+		if (preIt->second == 1) {
+			predecessors.erase(preIt);
+			first.push_back(successor);
+		} else {
+			preIt->second--;
+		}
+	}
+	delete node;
+	first.erase(first.begin() + position);
+}
 
-	std::copy(first.begin(), position, std::back_inserter(result.first));
-
-	const Task* task = *position;
-	for(Tasks::const_iterator it = task->successors.begin(); it != task->successors.end(); ++it) {
-		const Task* successor = *it;
-		Predecessors::iterator predecessors = result.predecessors.find(successor);
-		--(predecessors->second);
-		if(predecessors->second == 0) {
-			result.predecessors.erase(predecessors);
-			result.first.push_back(successor);
+void TaskNetwork::replace(size_t position, const TaskNetwork& that) {
+	Node* replaced = first[position];
+	
+	TaskNetwork thatCopy(that);
+	
+	size_t lasts = 0;
+	for(Tasks::const_iterator it = thatCopy.first.begin(); it != thatCopy.first.end(); ++it) {
+		Node* node(*it);
+		if (node->successors.empty()) {
+			++lasts;
+			node->successors = replaced->successors;
+		}
+	}
+	for(Predecessors::const_iterator it = thatCopy.predecessors.begin(); it != thatCopy.predecessors.end(); ++it) {
+		Node* node(it->first);
+		if (node->successors.empty()) {
+			++lasts;
+			node->successors = replaced->successors;
 		}
 	}
 
-	std::copy(position + 1, first.end(), std::back_inserter(result.first));
-
-	return result;
-}
-
-TaskNetwork TaskNetwork::replace(Tasks::const_iterator position, const TaskNetwork& that) const {
-	const Task* task = *position;
-	size_t predecessorsCount = 0;
-
-	// copy that network
-	TaskNetwork result = that.rewrite(Sequence(task->successors, predecessorsCount));
-	if(predecessorsCount == 0) {
-		result.first = task->successors;
+	for(Tasks::const_iterator it = replaced->successors.begin(); it != replaced->successors.end(); ++it) {
+		Node* node(*it);
+		predecessors[node] += lasts;
 	}
-
-	// copy our first tasks except the replaced one
-	result.first.insert(result.first.end(), first.begin(), position);
-	result.first.insert(result.first.end(), position + 1, first.end());
-
-	// copy our predecessors counters
-	result.predecessors.insert(this->predecessors.begin(), this->predecessors.end());
-
-	// update the predecessors counters of the replaced task's successors
-	for(Tasks::const_iterator it = task->successors.begin(); it != task->successors.end(); ++it) {
-		Predecessors::iterator succPredCount = result.predecessors.find(*it);
-		succPredCount->second += predecessorsCount - 1;
-		if(succPredCount->second == 0)
-			result.predecessors.erase(succPredCount);
-	}
-
-	return result;
-}
-
-TaskNetwork TaskNetwork::rewrite(boost::function<Task* (const Task*)> cloner) const {
-	TaskNetwork network;
-
-	typedef std::map<const Task*, Task*> Clones;
-	Clones clones;
-
-	// clone first row of tasks
-	network.first.reserve(first.size());
-	for(Tasks::const_iterator it = first.begin(); it != first.end(); ++it) {
-		const Task* task = *it;
-		Task* clone = cloner(task);
-		assert(task);
-		assert(clone);
-		clones[task] = clone;
-		network.first.push_back(clone);
-	}
-
-	// clone successors
-	for(Predecessors::const_iterator it = predecessors.begin(); it != predecessors.end(); ++it) {
-		const Task* task = it->first;
-		Task* clone = cloner(task);
-		assert(task);
-		assert(clone);
-		clones[task] = clone;
-		network.predecessors[clone] = it->second;
-	}
-
-	// replace successors by clones
-	for(Clones::const_iterator it = clones.begin(); it != clones.end(); ++it) {
-		Task* clone = it->second;
-		for(Tasks::iterator jt = clone->successors.begin(); jt != clone->successors.end(); ++jt) {
-			Clones::const_iterator found = clones.find(*jt);
-			if(found != clones.end()) {
-				*jt = found->second;
-			}
-		}
-	}
-
-	return network;
+	
+	delete replaced;
+	first.erase(first.begin() + position);
+	
+	first.insert(first.end(), thatCopy.first.begin(), thatCopy.first.end());
+	predecessors.insert(thatCopy.predecessors.begin(), thatCopy.predecessors.end());
+	
+	thatCopy.first.clear();
+	thatCopy.predecessors.clear();
 }
 
 std::ostream& operator<<(std::ostream& os, const TaskNetwork& network) {
-	typedef std::map<const Task*, size_t> TasksIdsMap;
+	typedef std::map<TaskNetwork::Node*, size_t> TasksIdsMap;
 	TasksIdsMap tasksIdsMap;
 
-	typedef std::set<const Task*> TasksSet;
+	typedef std::set<TaskNetwork::Node*> TasksSet;
 	TasksSet alreadySeen;
-	Tasks workList = network.first;
+	TaskNetwork::Tasks workList = network.first;
 
 	// print all tasks (nodes)
 	size_t index = 0;
 	while(index < workList.size()) {
-		const Task* task = workList[index];
+		TaskNetwork::Node* node = workList[index];
 
 		os << index << ":";
-		tasksIdsMap[task] = index++;
-		os << *task;
+		tasksIdsMap[node] = index++;
+		os << node->task;
 
-		for(Tasks::const_iterator it = task->successors.begin(); it != task->successors.end(); ++it) {
-			const Task* succ = *it;
+		for(TaskNetwork::Tasks::const_iterator it = node->successors.begin(); it != node->successors.end(); ++it) {
+			TaskNetwork::Node* succ = *it;
 			if(alreadySeen.insert(succ).second) {
 				workList.push_back(succ);
 			}
@@ -216,17 +164,17 @@ std::ostream& operator<<(std::ostream& os, const TaskNetwork& network) {
 
 	// print precedencies order constraints (edges)
 	bool first = true;
-	for (Tasks::const_iterator it = workList.begin(); it != workList.end(); ++it)
+	for (TaskNetwork::Tasks::const_iterator it = workList.begin(); it != workList.end(); ++it)
 	{
-		const Task* task = *it;
-		for (Tasks::const_iterator jt = task->successors.begin(); jt != task->successors.end(); ++jt)
+		TaskNetwork::Node* node = *it;
+		for (TaskNetwork::Tasks::const_iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt)
 		{
-			const Task* succ = *jt;
+			TaskNetwork::Node* succ = *jt;
 			if (first)
 				first = false;
 			else
 				os << ", ";
-			os << tasksIdsMap[task] << "<" << tasksIdsMap[succ];
+			os << tasksIdsMap[node] << "<" << tasksIdsMap[succ];
 		}
 	}
 
@@ -245,8 +193,7 @@ ScopedTaskNetwork::ScopedTaskNetwork(const Scope& scope, const TaskNetwork& netw
 ScopedTaskNetwork ScopedTaskNetwork::operator>>(const ScopedTaskNetwork& that) const {
 	Scope scope(this->scope);
 	Scope::Indices subst = scope.merge(that.scope);
-	TaskNetwork head(this->network.clone());
-	TaskNetwork tail(that.network.clone());
+	TaskNetwork tail(that.network);
 	tail.substitute(subst);
-	return ScopedTaskNetwork(scope, head >> tail);
+	return ScopedTaskNetwork(scope, network >> tail);
 }

@@ -3,7 +3,6 @@
 
 
 #include "scope.hpp"
-#include <boost/function.hpp>
 #include <map>
 #include <vector>
 
@@ -12,18 +11,14 @@ struct Head;
 struct Task;
 
 
-typedef std::vector<const Task*> Tasks;
-
-
 struct Task {
 
-	Task(const Head* head, const Scope::Indices& params, const Tasks& successors);
+	Task(const Head* head, const Scope::Indices& params);
 
 	void substitute(const Scope::Indices& subst);
 
 	const Head* head;
 	Scope::Indices params;
-	Tasks successors;
 
 	friend std::ostream& operator<<(std::ostream& os, const Task& task);
 
@@ -32,25 +27,30 @@ struct Task {
 };
 
 struct TaskNetwork {
-
+	
+	TaskNetwork();
+	TaskNetwork(const TaskNetwork& that);
 	~TaskNetwork();
-	TaskNetwork clone() const;
+
 	void substitute(const Scope::Indices& subst);
 	TaskNetwork operator>>(const TaskNetwork& that) const;
 
-	TaskNetwork erase(Tasks::const_iterator position) const;
-	TaskNetwork replace(Tasks::const_iterator position, const TaskNetwork& that) const;
+	struct Node;
+	typedef std::vector<Node*> Tasks;
+	struct Node {
+		Node(const Task& task);
+		Task task;
+		Tasks successors;
+	};
+	typedef std::map<Node*, size_t> Predecessors;
 
-	size_t getSize() const { return first.size() + predecessors.size(); }
-
-	typedef std::map<const Task*, size_t> Predecessors;
+	void erase(size_t position);
+	void replace(size_t position, const TaskNetwork& that);
 
 	Tasks first;
 	Predecessors predecessors;
 
 private:
-
-	TaskNetwork rewrite(boost::function<Task* (const Task*)> cloner) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const TaskNetwork& network);
 

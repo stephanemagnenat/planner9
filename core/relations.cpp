@@ -1,12 +1,15 @@
 #include "relations.hpp"
 #include "state.hpp"
+#include "domain.hpp"
 #include <cstdarg>
 #include <cassert>
 
 
-Relation::Relation(const std::string& name, size_t arity):
+Relation::Relation(Domain* domain, const std::string& name, size_t arity):
 	name(name),
 	arity(arity) {
+	if (domain)
+		domain->registerRelation(*this);
 }
 
 ScopedProposition Relation::operator()(const char* first, ...) {
@@ -84,8 +87,8 @@ Relation::VariablesRanges Relation::getRange(const Atom& atom, const State& stat
 	return atomRanges;
 }
 
-EquivalentRelation::EquivalentRelation(const std::string& name):
-	Relation(name, 2) {
+EquivalentRelation::EquivalentRelation(Domain* domain, const std::string& name):
+	Relation(domain, name, 2) {
 }
 
 bool EquivalentRelation::check(const Atom& atom, const State& state) const {
@@ -192,7 +195,7 @@ Atom EquivalentRelation::createAtom(const Scope::Index p0, const Scope::Index p1
 
 
 EqualityRelation::EqualityRelation():
-	Relation("=", 2) {
+	Relation(0, "=", 2) {
 }
 
 bool EqualityRelation::check(const Atom& atom, const State& /*state*/) const {

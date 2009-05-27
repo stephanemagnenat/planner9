@@ -3,22 +3,13 @@
 #include "../core/problem.hpp"
 
 ThreadedPlanner9::ThreadedPlanner9(const Problem& problem, size_t threadsCount, std::ostream* debugStream):
-	Planner9(problem, debugStream),
-	iterationCount(0),
+	SimplePlanner9(problem, debugStream),
 	threadsCount(threadsCount),
 	workingThreadCount(0) {
 }
 
-ThreadedPlanner9::~ThreadedPlanner9() {
-	for (SearchNodes::iterator it = nodes.begin(); it != nodes.end(); ++it)
-		delete it->second;
-}
-
 // HTN: procedure SHOP2(s, T, D)
 boost::optional<Plan> ThreadedPlanner9::plan() {
-	// HTN: P = the empty plan
-	Planner9::addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
-	
 	boost::mutex::scoped_lock lock(mutex);
 
 	boost::thread_group threads;
@@ -53,9 +44,7 @@ bool ThreadedPlanner9::step() {
 		}
 	} while (nodes.empty() || !plans.empty());
 	
-	SearchNodes::iterator front = nodes.begin();
-	SearchNode* node = front->second;
-	nodes.erase(front);
+	SearchNode* node = popNode();
 	
 	workingThreadCount++;
 	lock.unlock();
@@ -75,14 +64,12 @@ void ThreadedPlanner9::operator()() {
 	while (step()) {}
 }
 
-void ThreadedPlanner9::addNode(SearchNode* node) {
-	Cost cost = node->cost + node->network.getSize();
-	
+void ThreadedPlanner9::pushNode(SearchNode* node) {
 	if (debugStream)
 		*debugStream << "+ " << *node << std::endl;
 
 	boost::mutex::scoped_lock lock(mutex);
-	nodes.insert(SearchNodes::value_type(cost, node));
+	nodes.insert(SearchNodes::value_type(node->getTotalCost(), node));
 	condition.notify_one();
 }
 

@@ -6,10 +6,55 @@
 #include <cstdarg>
 #include <iostream>
 
+Domain::Domain() {
+	registerRelation(equals);
+}
 
-Head::Head(const std::string& name) :
+const Head* Domain::getHead(size_t index) const {
+	if (index < headsVector.size())
+		return headsVector[index];
+	else
+		return 0;
+}
+
+size_t Domain::getHeadIndex(const Head* head) const {
+	HeadsReverseMap::const_iterator it = headsReverseMap.find(head);
+	if (it != headsReverseMap.end())
+		return it->second;
+	else
+		return (size_t)-1;
+}
+
+const Relation* Domain::getRelation(size_t index) const {
+	if (index < relationsVector.size())
+		return relationsVector[index];
+	else
+		return 0;
+}
+
+size_t Domain::getRelationIndex(const Relation* rel) const {
+	RelationsReverseMap::const_iterator it = relationsReverseMap.find(rel);
+	if (it != relationsReverseMap.end())
+		return it->second;
+	else
+		return (size_t)-1;
+}
+
+void Domain::registerHead(const Head& head) {
+	headsReverseMap[&head] = headsVector.size();
+	headsVector.push_back(&head);
+}
+
+void Domain::registerRelation(const Relation& rel) {
+	relationsReverseMap[&rel] = relationsVector.size();
+	relationsVector.push_back(&rel);
+}
+	
+
+Head::Head(Domain* domain, const std::string& name) :
 	name(name),
 	minCost(0) {
+	domain->registerHead(*this);
 }
 
 void Head::param(const std::string& name) {
@@ -41,8 +86,10 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	Scope scope(names);
 	Scope::Indices indices = scope.getIndices(names);
 
+	TaskNetwork::Node* node = new TaskNetwork::Node(Task(this, indices));
+	
 	TaskNetwork network;
-	network.first.push_back(new Task(this, indices, Tasks()));
+	network.first.push_back(node);
 
 	return ScopedTaskNetwork(scope, network);
 }
@@ -52,8 +99,8 @@ std::ostream& operator<<(std::ostream& os, const Head& head) {
 }
 
 
-Action::Action(const std::string& name) :
-	Head(name) {
+Action::Action(Domain* domain, const std::string& name) :
+	Head(domain, name) {
 }
 
 void Action::pre(const ScopedProposition& precondition) {
@@ -120,13 +167,13 @@ std::ostream& operator<<(std::ostream& os, const Method::Alternative& alternativ
 }
 
 
-Method::Method(const std::string& name) :
-	Head(name) {
+Method::Method(Domain* domain, const std::string& name) :
+	Head(domain, name) {
 }
 
 void Method::alternative(const std::string& name, const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition, Cost cost) {
 	CNF proposition = precondition.proposition->cnf();
-	TaskNetwork network = decomposition.getNetwork().clone();
+	TaskNetwork network(decomposition.getNetwork());
 
 	Scope scope(paramsScope);
 

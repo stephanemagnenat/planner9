@@ -8,6 +8,7 @@
 
 
 struct State;
+struct Domain;
 
 
 struct Relation {
@@ -50,7 +51,7 @@ struct Relation {
 	};
 	typedef std::map<Scope::Index, VariableRange> VariablesRanges;
 			
-	Relation(const std::string& name, size_t arity);
+	Relation(Domain* domain, const std::string& name, size_t arity);
 
 	ScopedProposition operator()(const char* first, ...);
 
@@ -66,7 +67,7 @@ struct Relation {
 
 struct EquivalentRelation : public Relation {
 
-	EquivalentRelation(const std::string& name);
+	EquivalentRelation(Domain* domain, const std::string& name);
 
 	bool check(const Atom& atom, const State& state) const;
 	void set(const Literal& literal, State& state) const;
