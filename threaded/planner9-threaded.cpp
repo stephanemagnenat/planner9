@@ -1,6 +1,6 @@
 #include "planner9-threaded.hpp"
-#include "plan.hpp"
-#include "problem.hpp"
+#include "../core/plan.hpp"
+#include "../core/problem.hpp"
 
 ThreadedPlanner9::ThreadedPlanner9(const Problem& problem, size_t threadsCount, std::ostream* debugStream):
 	Planner9(problem, debugStream),

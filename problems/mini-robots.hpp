@@ -3,9 +3,9 @@
 
 
 
-#include "../domain.hpp"
-#include "../problem.hpp"
-#include "../relations.hpp"
+#include "../core/domain.hpp"
+#include "../core/problem.hpp"
+#include "../core/relations.hpp"
 
 
 struct MyDomain {

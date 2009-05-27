@@ -1,8 +1,8 @@
 //#include "problems/basic.hpp"
 //#include "problems/mini-robots.hpp"
-#include "problems/robots.hpp"
+#include "../problems/robots.hpp"
 //#include "problems/rover.hpp"
-#include "planner9-threaded.hpp"
+#include "../threaded/planner9-threaded.hpp"
 
 
 using namespace std;

@@ -2,8 +2,8 @@
 #define PLANNER9THREADED_HPP_
 
 
-#include "planner.hpp"
-#include "planner9.hpp"
+#include "../core/planner.hpp"
+#include "../core/planner9.hpp"
 #include <boost/thread.hpp>
 #include <set>
 #include <map>

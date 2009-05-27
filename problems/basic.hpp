@@ -1,9 +1,9 @@
 #ifndef PROBLEMS_BASIC_HPP_
 #define PROBLEMS_BASIC_HPP_
 
-#include "../domain.hpp"
-#include "../problem.hpp"
-#include "../relations.hpp"
+#include "../core/domain.hpp"
+#include "../core/problem.hpp"
+#include "../core/relations.hpp"
 
 
 // JSHOP2 example
