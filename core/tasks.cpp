@@ -160,9 +160,12 @@ TaskNetwork TaskNetwork::operator>>(const TaskNetwork& that) const {
 
 void TaskNetwork::erase(size_t position) {
 	Node* node = first[position];
+	first.erase(first.begin() + position);
+	
 	for (Tasks::const_iterator it = node->successors.begin(); it != node->successors.end(); ++it) {
 		Node* successor(*it);
 		Predecessors::iterator preIt = predecessors.find(successor);
+		assert(preIt != predecessors.end());
 		if (preIt->second == 1) {
 			predecessors.erase(preIt);
 			first.push_back(successor);
@@ -170,8 +173,8 @@ void TaskNetwork::erase(size_t position) {
 			preIt->second--;
 		}
 	}
+	
 	delete node;
-	first.erase(first.begin() + position);
 }
 
 void TaskNetwork::replace(size_t position, const TaskNetwork& that) {
@@ -195,9 +198,16 @@ void TaskNetwork::replace(size_t position, const TaskNetwork& that) {
 		}
 	}
 
-	for(Tasks::const_iterator it = replaced->successors.begin(); it != replaced->successors.end(); ++it) {
+	for(Tasks::iterator it = replaced->successors.begin(); it != replaced->successors.end(); ++it) {
 		Node* node(*it);
-		predecessors[node] += lasts;
+		Predecessors::iterator preIt(predecessors.find(node));
+		assert(preIt != predecessors.end());
+		preIt->second += lasts - 1;
+		if (preIt->second == 0) {
+			// we have to move this node in the first
+			first.push_back(node);
+			predecessors.erase(preIt);
+		}
 	}
 	
 	delete replaced;
