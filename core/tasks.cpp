@@ -26,8 +26,89 @@ Scope::Indices Task::getSubstitution(const size_t taskScopeSize, const Scope::In
 	return subst;
 }
 
-// TODO: add copy constructor
-// TODO: add copy operator
+TaskNetwork::Node::Node(const Task& task) :
+	task(task) {
+}
+
+TaskNetwork::TaskNetwork() {
+	// does not do anything	
+}
+
+TaskNetwork::TaskNetwork(const TaskNetwork& that) {
+	typedef std::map<const Node*,Node*> SuccessorsSubstitutionMap;
+	SuccessorsSubstitutionMap successorsSubstitutionMap;
+	
+	// create a copy of that, build a map of substitution
+	first.reserve(that.first.size());
+	for (Tasks::const_iterator it = that.first.begin(); it != that.first.end(); ++it) {
+		const Node* thatNode(*it);
+		Node* thisNode(new Node(*thatNode));
+		first.push_back(thisNode);
+		successorsSubstitutionMap[thatNode] = thisNode;
+	}
+	for (Predecessors::const_iterator it = that.predecessors.begin(); it != that.predecessors.end(); ++it) {
+		const Node* thatNode(it->first);
+		Node* thisNode(new Node(*thatNode));
+		predecessors[thisNode] = it->second;
+		successorsSubstitutionMap[thatNode] = thisNode;
+	}
+	// fixup successors
+	for (Tasks::const_iterator it = first.begin(); it != first.end(); ++it) {
+		Node* node(*it);
+		for (Tasks::iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt) {
+			*jt = successorsSubstitutionMap[*jt];
+		}
+	}
+	for (Predecessors::const_iterator it = that.predecessors.begin(); it != that.predecessors.end(); ++it) {
+		Node* node(it->first);
+		for (Tasks::iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt) {
+			*jt = successorsSubstitutionMap[*jt];
+		}
+	}
+}
+
+TaskNetwork& TaskNetwork::operator=(const TaskNetwork& that) {
+	// first delete current content
+	for (Tasks::iterator it = first.begin(); it != first.end(); ++it)
+		 delete *it;
+	for (Predecessors::iterator it = predecessors.begin(); it != predecessors.end(); ++it)
+		delete it->first;
+	first.clear();
+	predecessors.clear();
+	
+	typedef std::map<const Node*,Node*> SuccessorsSubstitutionMap;
+	SuccessorsSubstitutionMap successorsSubstitutionMap;
+	
+	// create a copy of that, build a map of substitution
+	first.reserve(that.first.size());
+	for (Tasks::const_iterator it = that.first.begin(); it != that.first.end(); ++it) {
+		const Node* thatNode(*it);
+		Node* thisNode(new Node(*thatNode));
+		first.push_back(thisNode);
+		successorsSubstitutionMap[thatNode] = thisNode;
+	}
+	for (Predecessors::const_iterator it = that.predecessors.begin(); it != that.predecessors.end(); ++it) {
+		const Node* thatNode(it->first);
+		Node* thisNode(new Node(*thatNode));
+		predecessors[thisNode] = it->second;
+		successorsSubstitutionMap[thatNode] = thisNode;
+	}
+	// fixup successors
+	for (Tasks::const_iterator it = first.begin(); it != first.end(); ++it) {
+		Node* node(*it);
+		for (Tasks::iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt) {
+			*jt = successorsSubstitutionMap[*jt];
+		}
+	}
+	for (Predecessors::const_iterator it = that.predecessors.begin(); it != that.predecessors.end(); ++it) {
+		Node* node(it->first);
+		for (Tasks::iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt) {
+			*jt = successorsSubstitutionMap[*jt];
+		}
+	}
+	
+	return *this;
+}
 
 TaskNetwork::~TaskNetwork() {
 	for (Tasks::iterator it = first.begin(); it != first.end(); ++it)

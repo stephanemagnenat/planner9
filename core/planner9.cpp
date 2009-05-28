@@ -28,6 +28,9 @@ std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 	return os;
 }
 
+Planner9::Cost Planner9::SearchNode::getTotalCost() const {
+	return cost + network.first.size() + network.predecessors.size();
+}
 
 
 Planner9::Planner9(const Scope& problemScope, std::ostream* debugStream):

@@ -30,6 +30,7 @@ struct TaskNetwork {
 	
 	TaskNetwork();
 	TaskNetwork(const TaskNetwork& that);
+	TaskNetwork& operator=(const TaskNetwork& that);
 	~TaskNetwork();
 
 	void substitute(const Scope::Indices& subst);
@@ -37,6 +38,7 @@ struct TaskNetwork {
 
 	struct Node;
 	typedef std::vector<Node*> Tasks;
+	
 	struct Node {
 		Node(const Task& task);
 		Task task;
@@ -70,7 +72,7 @@ struct ScopedTaskNetwork {
 
 private:
 	Scope scope;
-	TaskNetwork network; // TODO: free network's tasks upon delete
+	TaskNetwork network;
 
 };
 
