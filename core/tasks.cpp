@@ -59,7 +59,7 @@ TaskNetwork::TaskNetwork(const TaskNetwork& that) {
 			*jt = successorsSubstitutionMap[*jt];
 		}
 	}
-	for (Predecessors::const_iterator it = that.predecessors.begin(); it != that.predecessors.end(); ++it) {
+	for (Predecessors::const_iterator it = predecessors.begin(); it != predecessors.end(); ++it) {
 		Node* node(it->first);
 		for (Tasks::iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt) {
 			*jt = successorsSubstitutionMap[*jt];
@@ -100,7 +100,7 @@ TaskNetwork& TaskNetwork::operator=(const TaskNetwork& that) {
 			*jt = successorsSubstitutionMap[*jt];
 		}
 	}
-	for (Predecessors::const_iterator it = that.predecessors.begin(); it != that.predecessors.end(); ++it) {
+	for (Predecessors::const_iterator it = predecessors.begin(); it != predecessors.end(); ++it) {
 		Node* node(it->first);
 		for (Tasks::iterator jt = node->successors.begin(); jt != node->successors.end(); ++jt) {
 			*jt = successorsSubstitutionMap[*jt];
