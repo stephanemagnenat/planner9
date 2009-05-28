@@ -1,159 +1,31 @@
 #include "planner9-distributed.hpp"
+#include "../core/planner9.hpp"
 #include "../core/tasks.hpp"
+#include "../core/relations.hpp"
 #include <QTcpSocket>
 #include <stdexcept>
 
-Serializer::Serializer(const Domain& domain) :
-	domain(domain) {
-}
+// force the use of spetialized versions
 
-template<>
-void Serializer::write(const Command& cmd) {
-	write<quint16>(cmd);
-}
+template<> void Serializer::write(const Command& cmd);
+template<> void Serializer::write(const Scope& scope);
+template<> void Serializer::write(const Task& task);
+template<> void Serializer::write(const Plan& plan);
+template<> void Serializer::write(const Atom& atom);
+template<> void Serializer::write(const CNF& cnf);
+template<> void Serializer::write(const State& state);
+template<> void Serializer::write(const TaskNetwork& network);
+//template<> void Serializer::write(const Planner9::SearchNode*& node);
 
-template<>
-void Serializer::write(const Scope& scope) {
-	write<quint16>(scope.getSize());
-	for (size_t i = 0; i < scope.getSize(); ++i)
-		write(QString::fromStdString(scope.names[i]));
-}
-
-template<>
-void Serializer::write(const Task& task) {
-	write<quint16>(domain.getHeadIndex(task.head));
-	for (Scope::Indices::const_iterator it = task.params.begin(); it != task.params.end(); ++it)
-		write<quint16>(*it);
-}	
-
-template<>
-void Serializer::write(const Plan& plan) {
-	write<quint16>(plan.size());
-	for (Plan::const_iterator it = plan.begin(); it != plan.end(); ++it)
-		write(*it);
-}
-
-template<>
-void Serializer::write(const Atom& atom) {
-	write<quint16>(domain.getRelationIndex(atom.relation));
-	for (Scope::Indices::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it)
-		write<quint16>(*it);
-}
-
-template<>
-void Serializer::write(const CNF& cnf) {
-	write<quint16>(cnf.size());
-	for (CNF::const_iterator it = cnf.begin(); it != cnf.end(); ++it) {
-		const Clause& clause(*it);
-		write<quint16>(clause.size());
-		for (Clause::const_iterator jt = clause.begin(); jt != clause.end(); ++jt) {
-			const Literal& literal(*jt);
-			write(literal.atom);
-			write(literal.negated);
-		}
-	}
-}
-
-template<>
-void Serializer::write(const State& state) {
-	const size_t atomsCount(state.atoms.size());
-	write<quint16>(atomsCount);
-	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
-		const State::AtomSet& atomSet(it->second);
-		for (State::AtomSet::const_iterator jt = atomSet.begin(); jt != atomSet.end(); ++jt) {
-			write(*jt);
-		}
-	}
-}
-
-template<>
-void Serializer::write(const TaskNetwork& taskNetwork) {
-/*
-	const size_t tasksCount(taskNetwork.first.size() + taskNetwork.predecessors.size());
-	*this << quint16(tasksCount);
-	for (TaskNetwork::Tasks::const_iterator it = taskNetwork.first.begin(); it != taskNetwork.first.end(); ++it)
-		*this << *(*it);
-	for (TaskNetwork::Predecessors::const_iterator it = taskNetwork.predecessors.begin(); it != taskNetwork.predecessors.end(); ++it)
-		*this << *(it->first);
-	// TODO: fix this
-		*/
-}
-
-void Serializer::write(const Planner9::SearchNode*& node) {
-	write(node->plan);
-	write(node->network);
-	write(quint16(node->allocatedVariablesCount));
-	write(quint16(node->cost));
-	write(node->preconditions);
-	write(node->state);
-}
-
-template<>
-Command Serializer::read() {
-	return Command(read<quint16>());
-}
-
-template<>
-Scope Serializer::read() {
-	Scope scope;
-	quint16 size(read<quint16>());
-	scope.names.resize(size);
-	for (size_t i = 0; i < size; ++i) {
-		const QString string(read<QString>());
-		scope.names[i] = string.toStdString();
-	}
-	return scope;
-}
-
-template<>
-Task Serializer::read()  {
-	quint16 headIndex(read<quint16>());
-	const Head* head(domain.getHead(headIndex));
-	Scope::Indices indices;
-	indices.reserve(head->getParamsCount());
-	for (size_t i = 0; i < head->getParamsCount(); ++i) {
-		const quint16 value(read<quint16>());
-		indices.push_back(value);
-	}
-	return Task(head, indices);
-}
-
-template<>
-Plan Serializer::read()  {
-	// TODO
-	return Plan();
-}
-
-template<>
-Atom Serializer::read()  {
-	// TODO
-	return Atom(0, Scope::Indices());
-}
-
-template<>
-CNF Serializer::read()  {
-	// TODO
-	return CNF();
-}
-	
-template<>
-State Serializer::read() {
-	// TODO
-	return State();
-}
-	
-template<>
-TaskNetwork Serializer::read()  {
-	// TODO
-	return TaskNetwork();
-}
-
-template<>
-Planner9::SearchNode* Serializer::read()  {
-	// TODO
-	return 0;
-}
-
+template<> Command Serializer::read();
+template<> Scope Serializer::read();
+template<> Task Serializer::read();
+template<> Plan Serializer::read();
+template<> Atom Serializer::read();
+template<> CNF Serializer::read();
+template<> State Serializer::read();
+template<> TaskNetwork Serializer::read();
+template<> Planner9::SearchNode* Serializer::read();
 
 
 SlavePlanner9::SlavePlanner9(const Domain& domain):

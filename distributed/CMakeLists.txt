@@ -1,7 +1,10 @@
 find_package(Qt4)
 
 if (QT4_FOUND)
+	include(${QT_USE_FILE})
+	
 	set (PLANNER9DISTRIBUTED_SRC
+		serializer.cpp
 		planner9-distributed.cpp
 	)
 	

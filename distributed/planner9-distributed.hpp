@@ -2,30 +2,10 @@
 #define PLANNER9DISTRIBUTED_HPP_
 
 #include <QTcpServer>
-#include "../core/planner9.hpp"
+#include "serializer.hpp"
 
 struct Domain;
-
-enum Command {
-	CMD_PROBLEM_SCOPE,
-	CMD_PUSH_NODE,
-	CMD_GET_NODE,
-	CMD_PLAN,
-	CMD_CURRENT_COST
-};
-
-struct Serializer: public QDataStream {
-	Serializer(const Domain& domain);
-	
-	template<typename T>
-	void write(const T& t) { *this << t; }
-	void write(const Planner9::SearchNode*& node);
-	
-	template<typename T>
-	T read() { T t; *this >> t; return t; }
-	
-	const Domain& domain;
-};
+class SimplePlanner9;
 
 struct SlavePlanner9: QObject {
 	
