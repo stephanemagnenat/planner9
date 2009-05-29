@@ -13,6 +13,7 @@ struct SlavePlanner9: QObject {
 	
 	Q_OBJECT
 	
+public:
 	SlavePlanner9(const Domain& domain);
 
 protected slots:
@@ -35,7 +36,8 @@ protected:
 struct MasterPlanner9: QObject {
 	
 	Q_OBJECT
-	
+
+public:
 	MasterPlanner9(const Domain& domain);
 	~MasterPlanner9();
 	

@@ -1,10 +1,12 @@
-#include "planner9-distributed.hpp"
+#include "planner9-distributed.h"
 #include "../core/relations.hpp"
 #include "../core/planner9.hpp"
 #include "../core/tasks.hpp"
 #include <boost/cast.hpp>
 #include <QTcpSocket>
 #include <stdexcept>
+
+#include <planner9-distributed.moc>
 
 // force the use of specialized versions
 
@@ -36,11 +38,12 @@ SlavePlanner9::SlavePlanner9(const Domain& domain):
 	tcpServer.setMaxPendingConnections(1);
 	
 	connect(&tcpServer, SIGNAL(newConnection()), SLOT(newConnection()));
-	connect(&tcpServer, SIGNAL(dataReady()), SLOT(networkDataAvailable()));
 	
 	if (!tcpServer.listen()) {
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
+	
+	qDebug() << "listening on " << tcpServer.serverPort();
 }
 
 void SlavePlanner9::newConnection() {
