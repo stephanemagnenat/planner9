@@ -5,6 +5,11 @@ Serializer::Serializer(const Domain& domain) :
 	domain(domain) {
 }
 
+Serializer::Serializer(QIODevice * d, const Domain& domain) :
+	QDataStream(d), 
+	domain(domain) {
+}
+
 template<>
 void Serializer::write(const Command& cmd) {
 	write<quint16>(cmd);
@@ -101,13 +106,14 @@ void Serializer::write(const TaskNetwork& network) {
 	}
 }
 
-void Serializer::write(const Planner9::SearchNode*& node) {
-	write(node->plan);
-	write(node->network);
-	write(quint16(node->allocatedVariablesCount));
-	write(quint16(node->cost));
-	write(node->preconditions);
-	write(node->state);
+template<>
+void Serializer::write(const Planner9::SearchNode& node) {
+	write(node.plan);
+	write(node.network);
+	write(quint16(node.allocatedVariablesCount));
+	write(quint16(node.cost));
+	write(node.preconditions);
+	write(node.state);
 }
 
 template<>
@@ -244,12 +250,30 @@ TaskNetwork Serializer::read()  {
 }
 
 template<>
-Planner9::SearchNode* Serializer::read()  {
+Planner9::SearchNode Serializer::read()  {
 	const Plan plan(read<Plan>());
 	const TaskNetwork network(read<TaskNetwork>());
 	const size_t allocatedVariablesCount(read<quint16>());
 	const Cost cost(read<quint16>());
 	const CNF preconditions(read<CNF>());
 	const State state(read<State>());
-	return new Planner9::SearchNode(plan, network, allocatedVariablesCount, cost, preconditions, state);				
+	return Planner9::SearchNode(plan, network, allocatedVariablesCount, cost, preconditions, state);				
 }
+
+///
+
+/*
+TODO: examples for safe network operations
+bool sendCurrentCost(const Domain& domain, QAbstractSocket* socket, const Planner9::Cost& cost) {
+	QBuffer buffer;
+	Serializer s(&buffer, domain);
+	s.write(CMD_CURRENT_COST);
+	s.write(planner->nodes.begin()->first);
+	
+	QDataStream stream(socket);
+	stream << quint32(buffer.size());
+	stream.writeRawData(buffer.data(), buffer.size());
+	
+	return stream.status() == QDataStream::Ok;
+}
+*/

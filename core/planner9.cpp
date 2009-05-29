@@ -10,6 +10,8 @@
 #endif
 
 
+const Planner9::Cost Planner9::InfiniteCost = std::numeric_limits<int>::max();
+
 Planner9::SearchNode::SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
 	plan(plan),
 	network(network),

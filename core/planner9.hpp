@@ -6,7 +6,7 @@
 #include "logic.hpp"
 #include "domain.hpp"
 #include <iostream>
-
+#include <limits>
 
 struct Problem;
 
@@ -17,6 +17,8 @@ struct Planner9 {
 	virtual ~Planner9() {}
 	
 	typedef int Cost;
+	static const Cost InfiniteCost;
+	
 	// nodes in our search tree
 	struct SearchNode {
 		SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
