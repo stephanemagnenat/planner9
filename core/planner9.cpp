@@ -1,7 +1,5 @@
 #include "planner9.hpp"
-#include "domain.hpp"
 #include "problem.hpp"
-#include "logic.hpp"
 #include "relations.hpp"
 #include <iostream>
 #include <set>
@@ -12,20 +10,9 @@
 #endif
 
 
-// nodes in our search tree
-struct TreeNode {
-	TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
-	friend std::ostream& operator<<(std::ostream& os, const TreeNode& node);
+const Planner9::Cost Planner9::InfiniteCost = std::numeric_limits<int>::max();
 
-	const Plan plan;
-	const TaskNetwork network; // T
-	const size_t allocatedVariablesCount;
-	const Cost cost;
-	const CNF preconditions;
-	const State state;
-};
-
-TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
+Planner9::SearchNode::SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
 	plan(plan),
 	network(network),
 	allocatedVariablesCount(allocatedVariablesCount),
@@ -34,7 +21,7 @@ TreeNode::TreeNode(const Plan& plan, const TaskNetwork& network, size_t allocate
 	state(state) {
 }
 
-std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
+std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 	os << "node " << (&node) << " costs " << node.cost << std::endl;
 	os << "after " << node.plan << std::endl;
 	os << "do " << node.network << std::endl;
@@ -43,85 +30,24 @@ std::ostream& operator<<(std::ostream& os, const TreeNode& node) {
 	return os;
 }
 
-
-Planner9::Planner9(const Problem& problem, std::ostream* debugStream):
-	problem(problem),
-	iterationCount(0),
-	debugStream(debugStream),
-	workingThreadCount(0) {
+Planner9::Cost Planner9::SearchNode::getTotalCost() const {
+	return cost + network.first.size() + network.predecessors.size();
 }
 
-Planner9::~Planner9() {
-	for (Nodes::iterator it = nodes.begin(); it != nodes.end(); ++it)
-		delete it->second;
+
+Planner9::Planner9(const Scope& problemScope, std::ostream* debugStream):
+	problemScope(problemScope),
+	debugStream(debugStream) {
 }
 
-// HTN: procedure SHOP2(s, T, D)
-boost::optional<Plan> Planner9::plan(size_t threadsCount) {
-	// HTN: P = the empty plan
-	addNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
-
-	boost::mutex::scoped_lock lock(mutex);
-
-	boost::thread_group threads;
-	for (size_t i = 0; i < threadsCount; ++i) {
-		threads.create_thread(boost::ref(*this));
-		workingThreadCount++;
-	}
-
-	lock.unlock();
-	threads.join_all();
-
-	std::cout << "Terminated after " << iterationCount << " iterations" << std::endl;
-
-	if(plans.empty())
-		return false;
-	else
-		return plans.front();
-}
-
-bool Planner9::step() {
-	boost::mutex::scoped_lock lock(mutex);
-	workingThreadCount--;
-
-	do {
-		if (!plans.empty())
-			return false;
-		if (nodes.empty()) {
-			if(workingThreadCount == 0)
-				return false;
-			else
-				condition.wait(lock);
-		}
-	} while (nodes.empty() || !plans.empty());
-
-	Nodes::iterator front = nodes.begin();
-	TreeNode* node = front->second;
-	nodes.erase(front);
-
-	workingThreadCount++;
-	lock.unlock();
-
-	if (debugStream)
-		*debugStream << "- " << *node << std::endl;
-
-	visitNode(node->plan, node->network, node->allocatedVariablesCount, node->cost, node->preconditions, node->state);
-
-
-	delete node;
-	return true;
-}
-
-void Planner9::operator()() {
-	// HTN: loop
-	while (step()) {}
+void Planner9::visitNode(const SearchNode* n) {
+	visitNode(n->plan, n->network, n->allocatedVariablesCount, n->cost, n->preconditions, n->state);
 }
 
 void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
-	++iterationCount;
-
 	// HTN: T0 ← {t ∈ T : no other task in T is constrained to precede t}
-	const Tasks& t0 = network.first;
+	const TaskNetwork::Tasks& t0 = network.first;
+	
 	// HTN: if T = ∅ then return P
 	if (t0.empty()) {
 		assert(preconditions.empty());
@@ -131,10 +57,10 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 	}
 
 	// HTN: nondeterministically choose any t ∈ T0
-	for (Tasks::const_iterator taskIt = t0.begin(); taskIt != t0.end(); ++taskIt)
+	for (size_t ti = 0; ti < t0.size(); ++ti)
 	{
-		const Task* t = *taskIt;
-		const Head* head = t->head;
+		const Task& t(t0[ti]->task);
+		const Head* head(t.head);
 
 		const Action* action = dynamic_cast<const Action*>(head);
 		if(action != 0) {
@@ -148,19 +74,20 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			// HTN: nondeterministically choose a pair (a, θ) ∈ A
 			// TODO: HTN: modify s by deleting del(a) and adding add(a)
 
-			TaskNetwork newNetwork = network.erase(taskIt);
+			TaskNetwork newNetwork(network);
+			newNetwork.erase(ti);
 
-			Substitution subst = t->getSubstitution(action->getScope().getSize(), allocatedVariablesCount);
+			Substitution subst = t.getSubstitution(action->getScope().getSize(), allocatedVariablesCount);
 			size_t newAllocatedVariablesCount = allocatedVariablesCount + action->getScope().getSize() - head->getParamsCount();
 
 			CNF newPreconditions(action->getPrecondition());
 			newPreconditions.substitute(subst);
 			newPreconditions += preconditions;
 
-			if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
-			OptionalVariables simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+			if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problemScope) << newPreconditions << std::endl;
+			OptionalVariables simplificationResult = newPreconditions.simplify(state, problemScope.getSize(), newAllocatedVariablesCount);
 			if (simplificationResult) {
-				if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problemScope) << newPreconditions << std::endl;
 
 				Action::Effects effects(action->getEffects());
 				effects.substitute(subst);
@@ -168,7 +95,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				Plan newPlan(plan);
 
 				Substitution simplificationSubst(simplificationResult.get());
-				newAllocatedVariablesCount = simplificationSubst.defrag(problem.scope.getSize());
+				newAllocatedVariablesCount = simplificationSubst.defrag(problemScope.getSize());
 				newPreconditions.substitute(simplificationSubst);
 				newPlan.substitute(simplificationSubst);
 				newNetwork.substitute(simplificationSubst);
@@ -188,7 +115,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 						affectedRelations.insert(literal.atom.relation);
 						for (Variables::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
 							const Variable& variable = *jt;
-							if(variable.index >= problem.scope.getSize())
+							if(variable.index >= problemScope.getSize())
 								affectedVariables.insert(variable);
 						}
 					}
@@ -224,7 +151,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 						const Literal& literal = *jt;
 						const Atom& atom = literal.atom;
-						VariablesRanges atomRanges(atom.relation->getRange(atom, state, problem.scope.getSize()));
+						VariablesRanges atomRanges(atom.relation->getRange(atom, state, problemScope.getSize()));
 						// extend range of variables if it is to be grounded
 						for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
 							const Variable& variable = kt->first;
@@ -258,10 +185,10 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				}
 
 				if (debugStream) {
-					*debugStream << "constants " << problem.scope << std::endl;
+					*debugStream << "constants " << problemScope << std::endl;
 					*debugStream << "assigning";
 					for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
-						*debugStream << " " << it->first << " " << it->second ;
+						*debugStream << " var" << it->first - problemScope.getSize() << " " << it->second ;
 					}
 					*debugStream << std::endl;
 				}
@@ -293,7 +220,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 									newSubst[variable.index] = Variable(jt);
 									CNF newPre(pre);
 									newPre.substitute(newSubst);
-									OptionalVariables simplificationResult = newPre.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+									OptionalVariables simplificationResult = newPre.simplify(state, problemScope.getSize(), newAllocatedVariablesCount);
 									if (simplificationResult) {
 										newSubst.substitute(simplificationResult.get());
 										newGroundings.push_back(std::make_pair(newSubst, newPre));
@@ -311,23 +238,23 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				for (Groundings::iterator it = groundings.begin(); it != groundings.end(); ++it) {
 					Substitution& subst(it->first);
 					CNF& remainingPreconditions(it->second);
-					size_t assignedAllocatedVariablesCount = subst.defrag(problem.scope.getSize());
+					size_t assignedAllocatedVariablesCount = subst.defrag(problemScope.getSize());
 					remainingPreconditions.substitute(subst);
 
 					// create new task network
-					TaskNetwork assignedNetwork(newNetwork.clone());
+					TaskNetwork assignedNetwork(newNetwork);
 					assignedNetwork.substitute(subst);
 
 					// HTN: append a to P
 					Plan assignedPlan(newPlan);
-					assignedPlan.push_back(*t);
+					assignedPlan.push_back(t);
 					assignedPlan.substitute(subst);
 
 					// apply effects
 					const State newState = effects.apply(state, subst);
 
 					// HTN: T0 ← {t ∈ T : no task in T is constrained to precede t}
-					addNode(assignedPlan, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
+					pushNode(assignedPlan, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
 				}
 			} else {
 				if (debugStream) *debugStream << "simp. pre failed" << std::endl;
@@ -356,21 +283,22 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				CNF newPreconditions(alternative.precondition);
 				newPreconditions.substitute(subst);
 				newPreconditions += preconditions;
-				if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+				if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problemScope) << newPreconditions << std::endl;
 				OptionalVariables simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
 				if (simplificationResult) {
-					if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problem.scope) << newPreconditions << std::endl;
+					if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problemScope) << newPreconditions << std::endl;
 
 					Plan newPlan(plan);
 
 					// HTN: modify T by removing t, adding sub(m), constraining each task
 					// HTN: in sub(m) to precede the tasks that t preceded, and applying θ
-					TaskNetwork decomposition(alternative.tasks.clone());
+					TaskNetwork decomposition(alternative.tasks);
 					decomposition.substitute(subst);
-					TaskNetwork newNetwork = network.replace(taskIt, decomposition);
-
+					TaskNetwork newNetwork(network);
+					newNetwork.replace(ti, decomposition);
+					
 					Substitution simplificationSubst(simplificationResult.get());
-					newAllocatedVariablesCount = simplificationSubst.defrag(problem.scope.getSize());
+					newAllocatedVariablesCount = simplificationSubst.defrag(problemScope.getSize());
 					newPreconditions.substitute(simplificationSubst);
 					newPlan.substitute(simplificationSubst);
 					newNetwork.substitute(simplificationSubst);
@@ -380,7 +308,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					// HTN: if sub(m) = ∅ then
 					// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
 					// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
-					addNode(newPlan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
+					pushNode(newPlan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
 				} else {
 					if (debugStream)
 						*debugStream << "simp. pre failed" << std::endl;
@@ -390,21 +318,80 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 	}
 }
 
-void Planner9::addNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
-	TreeNode* node = new TreeNode(plan, network, allocatedVariablesCount, cost, preconditions, state);
+void Planner9::pushNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
+	pushNode(new SearchNode(plan, network, freeVariablesCount, cost, preconditions, state));
+}
 
-	cost += network.getSize();
 
+SimplePlanner9::SimplePlanner9(const Scope& problemScope, std::ostream* debugStream):
+	Planner9(problemScope, debugStream),
+	iterationCount(0) {
+}
+
+SimplePlanner9::SimplePlanner9(const Problem& problem, std::ostream* debugStream):
+	Planner9(problem.scope, debugStream),
+	iterationCount(0) {
+
+	// HTN: P = the empty plan
+	Planner9::pushNode(Plan(), problem.network, problemScope.getSize(), 0, CNF(), problem.state);
+	
+}
+
+SimplePlanner9::~SimplePlanner9() {
+	for (SearchNodes::iterator it = nodes.begin(); it != nodes.end(); ++it)
+		delete it->second;
+}
+
+// HTN: procedure SHOP2(s, T, D)
+boost::optional<Plan> SimplePlanner9::plan() {
+	// HTN: loop
+	while (plan(1))  {
+	}
+	
+	std::cout << "Terminated after " << iterationCount << " iterations" << std::endl;
+
+	if(plans.empty())
+		return false;
+	else
+		return plans.front();
+}
+
+bool SimplePlanner9::plan(size_t steps) {
+	size_t iterationMax = iterationCount + steps;
+	
+	// HTN: loop
+	while (plans.empty() && !nodes.empty() && (iterationCount < iterationMax))  {
+		SearchNode* node = popNode();
+		
+		if (debugStream)
+			*debugStream << "- " << *node << std::endl;
+		
+		++iterationCount;
+		visitNode(node);
+		
+		delete node;
+	}
+	
+	if (!plans.empty() || nodes.empty())
+		return false;
+	else
+		return true;
+}
+
+Planner9::SearchNode* SimplePlanner9::popNode() {
+	SearchNodes::iterator front = nodes.begin();
+	SearchNode* node = front->second;
+	nodes.erase(front);
+	return node;
+}
+
+void SimplePlanner9::pushNode(SearchNode* node) {
 	if (debugStream)
 		*debugStream << "+ " << *node << std::endl;
 
-	boost::mutex::scoped_lock lock(mutex);
-	nodes.insert(Nodes::value_type(cost, node));
-	condition.notify_one();
+	nodes.insert(SearchNodes::value_type(node->getTotalCost(), node));
 }
 
-void Planner9::success(const Plan& plan) {
-	boost::mutex::scoped_lock lock(mutex);
+void SimplePlanner9::success(const Plan& plan) {
 	plans.push_back(plan);
-	condition.notify_all();
 }

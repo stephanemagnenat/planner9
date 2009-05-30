@@ -11,9 +11,36 @@
 
 typedef int Cost;
 
+struct Domain {
+	Domain();
+	
+public:
+	const Head* getHead(size_t index) const;
+	size_t getHeadIndex(const Head* head) const;
+	const Relation* getRelation(size_t index) const;
+	size_t getRelationIndex(const Relation* rel) const;
+
+private:
+	friend class Head;
+	friend class Relation;
+	void registerHead(const Head& head);
+	void registerRelation(const Relation& rel);
+	
+private:
+	typedef std::vector<const Head*> HeadsVector;
+	typedef std::map<const Head*, size_t> HeadsReverseMap;
+	HeadsVector headsVector;
+	HeadsReverseMap headsReverseMap;
+	
+	typedef std::vector<const Relation*> RelationsVector;
+	typedef std::map<const Relation*, size_t> RelationsReverseMap;
+	RelationsVector relationsVector;
+	RelationsReverseMap relationsReverseMap;
+};
+
 struct Head {
 
-	Head(const std::string& name);
+	Head(Domain* domain, const std::string& name);
 	virtual ~Head() {}
 
 	void param(const std::string& name);
@@ -27,7 +54,7 @@ struct Head {
 	size_t getParamsCount() const { return paramsScope.getSize(); }
 
 	friend std::ostream& operator<<(std::ostream& os, const Head& head);
-
+	
 protected:
 
 	Scope paramsScope;
@@ -37,7 +64,7 @@ protected:
 /// documentation test
 struct Action: Head {
 
-	Action(const std::string& name);
+	Action(Domain* domain, const std::string& name);
 
 	void pre(const ScopedProposition& precondition);
 
@@ -67,7 +94,7 @@ private:
 
 struct Method: Head {
 
-	Method(const std::string& name);
+	Method(Domain* domain, const std::string& name);
 
 	void alternative(const std::string& name, const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition = ScopedTaskNetwork(), Cost cost = 1);
 
