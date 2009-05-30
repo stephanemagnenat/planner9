@@ -7,6 +7,7 @@ set (PLANNER9CORE_SRC
 	relations.cpp
 	scope.cpp
 	tasks.cpp
+	variable.cpp
 )
 
 add_library(planner9core ${PLANNER9CORE_SRC})

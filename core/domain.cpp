@@ -86,7 +86,7 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	Scope scope(names);
 	Variables variables = scope.getVariables(names);
 
-	TaskNetwork::Node* node = new TaskNetwork::Node(Task(this, indices));
+	TaskNetwork::Node* node = new TaskNetwork::Node(Task(this, variables));
 	
 	TaskNetwork network;
 	network.first.push_back(node);

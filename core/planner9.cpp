@@ -128,7 +128,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 								// the relation of this atom is affected, all its variables must be grounded
 								for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
 									const Variable& variable = *kt;
-									if(variable.index >= problem.scope.getSize())
+									if(variable.index >= problemScope.getSize())
 										affectedVariables.insert(variable);
 								}
 							}
@@ -142,7 +142,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				VariablesRanges variablesRanges;
 				for (VariableSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
 					const Variable& variable = *it;
-					variablesRanges[variable] = VariableRange(problem.scope.getSize(), true);
+					variablesRanges[variable] = VariableRange(problemScope.getSize(), true);
 				}
 
 				// filter out variables ranges using state
@@ -188,7 +188,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					*debugStream << "constants " << problemScope << std::endl;
 					*debugStream << "assigning";
 					for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
-						*debugStream << " var" << it->first - problemScope.getSize() << " " << it->second ;
+						*debugStream << " var" << it->first.index - problemScope.getSize() << " " << it->second ;
 					}
 					*debugStream << std::endl;
 				}
@@ -276,7 +276,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 			for (Method::Alternatives::const_iterator altIt = method->alternatives.begin(); altIt != method->alternatives.end(); ++altIt) {
 				const Method::Alternative& alternative = *altIt;
 
-				Substitution subst = t->getSubstitution(alternative.scope.getSize(), allocatedVariablesCount);
+				Substitution subst = t.getSubstitution(alternative.scope.getSize(), allocatedVariablesCount);
 				size_t newAllocatedVariablesCount = allocatedVariablesCount + alternative.scope.getSize() - head->getParamsCount();
 
 				if (debugStream) *debugStream << "* alternative " << alternative.name << std::endl;
@@ -284,7 +284,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				newPreconditions.substitute(subst);
 				newPreconditions += preconditions;
 				if (debugStream) *debugStream << "raw pre:  " << Scope::setScope(problemScope) << newPreconditions << std::endl;
-				OptionalVariables simplificationResult = newPreconditions.simplify(state, problem.scope.getSize(), newAllocatedVariablesCount);
+				OptionalVariables simplificationResult = newPreconditions.simplify(state, problemScope.getSize(), newAllocatedVariablesCount);
 				if (simplificationResult) {
 					if (debugStream) *debugStream << "simp. pre:  " << Scope::setScope(problemScope) << newPreconditions << std::endl;
 

@@ -25,8 +25,8 @@ void Serializer::write(const Scope& scope) {
 template<>
 void Serializer::write(const Task& task) {
 	write<quint16>(domain.getHeadIndex(task.head));
-	for (Scope::Indices::const_iterator it = task.params.begin(); it != task.params.end(); ++it)
-		write<quint16>(*it);
+	for (Variables::const_iterator it = task.params.begin(); it != task.params.end(); ++it)
+		write<quint16>(it->index);
 }	
 
 template<>
@@ -39,8 +39,8 @@ void Serializer::write(const Plan& plan) {
 template<>
 void Serializer::write(const Atom& atom) {
 	write<quint16>(domain.getRelationIndex(atom.relation));
-	for (Scope::Indices::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it)
-		write<quint16>(*it);
+	for (Variables::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it)
+		write<quint16>(it->index);
 }
 
 template<>
@@ -134,20 +134,20 @@ Scope Serializer::read() {
 }
 
 template<>
-Task Serializer::read()  {
+Task Serializer::read() {
 	const quint16 headIndex(read<quint16>());
 	const Head* head(domain.getHead(headIndex));
-	Scope::Indices indices;
-	indices.reserve(head->getParamsCount());
+	Variables variables;
+	variables.reserve(head->getParamsCount());
 	for (size_t i = 0; i < head->getParamsCount(); ++i) {
 		const quint16 value(read<quint16>());
-		indices.push_back(value);
+		variables.push_back(Variable(value));
 	}
-	return Task(head, indices);
+	return Task(head, variables);
 }
 
 template<>
-Plan Serializer::read()  {
+Plan Serializer::read() {
 	const size_t planSize(read<quint16>());
 	Plan plan;
 	plan.reserve(planSize);
@@ -157,17 +157,17 @@ Plan Serializer::read()  {
 }
 
 template<>
-Atom Serializer::read()  {
+Atom Serializer::read() {
 	const Relation* relation(domain.getRelation(read<quint16>()));
-	Scope::Indices indices;
-	indices.reserve(relation->arity);
+	Variables variables;
+	variables.reserve(relation->arity);
 	for (size_t i = 0; i < relation->arity; ++i)
-		indices.push_back(read<quint16>());
-	return Atom(relation, indices);
+		variables.push_back(Variable(read<quint16>()));
+	return Atom(relation, variables);
 }
 
 template<>
-CNF Serializer::read()  {
+CNF Serializer::read() {
 	CNF cnf;
 	const size_t cnfSize(read<quint16>());
 	cnf.reserve(cnfSize);
@@ -196,7 +196,7 @@ State Serializer::read() {
 }
 	
 template<>
-TaskNetwork Serializer::read()  {
+TaskNetwork Serializer::read() {
 	TaskNetwork::Tasks nodes;
 	
 	// Note: for efficiency reasons, we temporary store indexes in Node*,
@@ -250,7 +250,7 @@ TaskNetwork Serializer::read()  {
 }
 
 template<>
-Planner9::SearchNode Serializer::read()  {
+Planner9::SearchNode Serializer::read() {
 	const Plan plan(read<Plan>());
 	const TaskNetwork network(read<TaskNetwork>());
 	const size_t allocatedVariablesCount(read<quint16>());

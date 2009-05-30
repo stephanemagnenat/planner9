@@ -312,7 +312,7 @@ DNF CNF::dnf() const {
 
 OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd) {
 	bool wasSimplified;
-	Substitution subst(Variables::identity(variablesEnd));
+	Substitution subst(Substitution::identity(variablesEnd));
 	do {
 		wasSimplified = false;
 
