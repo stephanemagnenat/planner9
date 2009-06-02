@@ -30,7 +30,7 @@ protected:
 private:
 	int timerId;
 	SimplePlanner9* planner;
-	ChunkedDevice* chunkedDevice;
+	ChunkedDevice* device;
 	QTcpServer tcpServer;
 	Serializer stream;
 };

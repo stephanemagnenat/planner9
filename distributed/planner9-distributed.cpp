@@ -6,7 +6,8 @@
 #include <QTcpSocket>
 #include <stdexcept>
 
-#include <planner9-distributed.moc>
+#include "planner9-distributed.moc"
+
 
 // force the use of specialized versions
 
@@ -49,12 +50,12 @@ SlavePlanner9::SlavePlanner9(const Domain& domain):
 void SlavePlanner9::newConnection() {
 	
 	tcpServer.close();
-	QTcpSocket *clientConnection = tcpServer.nextPendingConnection();
-	this->chunkedDevice = new ChunkedDevice(clientConnection);
-	stream.setDevice(chunkedDevice);
+	QTcpSocket *socket = tcpServer.nextPendingConnection();
+	device = new ChunkedDevice(socket);
+	stream.setDevice(device);
 	
-	connect(chunkedDevice, SIGNAL(disconnected()), SLOT(disconnected()));
-	connect(chunkedDevice, SIGNAL(readyRead()), SLOT(messageAvailable()));
+	connect(device, SIGNAL(disconnected()), SLOT(disconnected()));
+	connect(device, SIGNAL(readyRead()), SLOT(messageAvailable()));
 	
 }
 
@@ -65,7 +66,7 @@ void SlavePlanner9::disconnected() {
 		planner = 0;
 	}
 	
-	chunkedDevice->deleteLater();
+	device->parent()->deleteLater();
 	
 	if (!tcpServer.listen()) {
 		throw std::runtime_error(tcpServer.errorString().toStdString());
@@ -92,7 +93,7 @@ void SlavePlanner9::messageAvailable() {
 			if (planner && !planner->nodes.empty()) {
 				stream.write(CMD_PUSH_NODE);
 				stream.write(planner->nodes.begin()->second);
-				chunkedDevice->flush();
+				device->flush();
 			}
 		} break;
 			
@@ -130,11 +131,11 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 			if (!planner->nodes.empty()) {
 				stream.write(CMD_CURRENT_COST);
 				stream.write(planner->nodes.begin()->first);
-				chunkedDevice->flush();
+				device->flush();
 			} else {
 				// no more nodes, report failure
 				stream.write(CMD_NOPLAN_FOUND);
-				chunkedDevice->flush();
+				device->flush();
 				killPlanner();
 			}
 		} else {
@@ -142,7 +143,7 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 			for (SimplePlanner9::Plans::const_iterator it = planner->plans.begin(); it != planner->plans.end(); ++it) {
 				stream.write(CMD_PLAN_FOUND);
 				stream.write(planner->plans.front());
-				chunkedDevice->flush();
+				device->flush();
 			}
 			killPlanner();
 		}
@@ -154,6 +155,7 @@ void SlavePlanner9::killPlanner() {
 	delete planner;
 	planner = 0;
 }
+
 
 MasterPlanner9::MasterPlanner9(const Domain& domain):
 	initialNode(0),

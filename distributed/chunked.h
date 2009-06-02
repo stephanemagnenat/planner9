@@ -12,7 +12,6 @@ struct ChunkedDevice: QIODevice {
 public:
 	ChunkedDevice(QIODevice* device);
 	QIODevice* parentDevice();
-	virtual ~ChunkedDevice(){}
 	bool open(OpenMode mode);
 	qint64 readData(char* data, qint64 maxSize);
 	qint64 writeData(const char* data, qint64 maxSize);

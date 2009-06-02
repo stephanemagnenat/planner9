@@ -1,6 +1,8 @@
 #include "chunked.h"
 #include <QDataStream>
 
+#include "chunked.moc"
+
 
 ChunkedDevice::ChunkedDevice(QIODevice* device):
 		QIODevice(device) {
