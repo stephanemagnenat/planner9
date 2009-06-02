@@ -4,10 +4,12 @@
 #include <QTcpServer>
 #include <QSet>
 #include "serializer.hpp"
+#include "chunked.h"
 #include "../core/problem.hpp"
 
 struct Domain;
 class SimplePlanner9;
+class ChunkedDevice;
 
 struct SlavePlanner9: QObject {
 	
@@ -19,16 +21,16 @@ public:
 protected slots:
 	void newConnection();
 	void disconnected();
-	void networkDataAvailable();
+	void messageAvailable();
 
 protected:
 	virtual void timerEvent(QTimerEvent *event);
 	void killPlanner();
 		
-protected:
+private:
 	int timerId;
 	SimplePlanner9* planner;
-	QTcpSocket *clientConnection;
+	ChunkedDevice* chunkedDevice;
 	QTcpServer tcpServer;
 	Serializer stream;
 };
@@ -53,18 +55,23 @@ protected slots:
 	void clientConnected();
 	void clientDisconnected();
 	void clientConnectionError(QAbstractSocket::SocketError socketError);
-	void networkDataAvailable();
+	void messageAvailable();
 	
 protected:
-	void sendScope(QTcpSocket* client);
-	void sendInitialNode(QTcpSocket* client);
-	void sendNode(QTcpSocket* client, const SimplePlanner9::SearchNode& node);
-	void sendStop(QTcpSocket* client);
+	void sendScope(ChunkedDevice* client);
+	void sendInitialNode(ChunkedDevice* client);
+	void sendNode(ChunkedDevice* client, const SimplePlanner9::SearchNode& node);
+	void sendStop(ChunkedDevice* client);
 	
-protected:
+private:
+	struct Client {
+		ChunkedDevice* device;
+		Planner9::Cost cost;
+	};
+
 	Problem problem;
 	Planner9::SearchNode *initialNode;
-	typedef QMap<QTcpSocket*, Planner9::Cost> ClientsMap;
+	typedef QMap<QTcpSocket*, Client> ClientsMap;
 	ClientsMap clients;
 	Serializer stream;
 };

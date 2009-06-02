@@ -5,6 +5,7 @@ if (QT4_FOUND)
 	
 	set (PLANNER9DISTRIBUTED_SRC
 		serializer.cpp
+		chunked.cpp
 		planner9-distributed.cpp
 	)
 	

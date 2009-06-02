@@ -50,10 +50,11 @@ void SlavePlanner9::newConnection() {
 	
 	tcpServer.close();
 	QTcpSocket *clientConnection = tcpServer.nextPendingConnection();
-	stream.setDevice(clientConnection);
+	this->chunkedDevice = new ChunkedDevice(clientConnection);
+	stream.setDevice(chunkedDevice);
 	
-	connect(clientConnection, SIGNAL(disconnected()), SLOT(disconnected()));
-	connect(clientConnection, SIGNAL(readyRead()), SLOT(networkDataAvailable()));
+	connect(chunkedDevice, SIGNAL(disconnected()), SLOT(disconnected()));
+	connect(chunkedDevice, SIGNAL(readyRead()), SLOT(messageAvailable()));
 	
 }
 
@@ -64,7 +65,7 @@ void SlavePlanner9::disconnected() {
 		planner = 0;
 	}
 	
-	clientConnection->deleteLater();
+	chunkedDevice->deleteLater();
 	
 	if (!tcpServer.listen()) {
 		throw std::runtime_error(tcpServer.errorString().toStdString());
@@ -72,7 +73,7 @@ void SlavePlanner9::disconnected() {
 }
 
 
-void SlavePlanner9::networkDataAvailable() {
+void SlavePlanner9::messageAvailable() {
 	// fetch command from master
 	Command cmd(stream.read<Command>());
 	
@@ -91,6 +92,7 @@ void SlavePlanner9::networkDataAvailable() {
 			if (planner && !planner->nodes.empty()) {
 				stream.write(CMD_PUSH_NODE);
 				stream.write(planner->nodes.begin()->second);
+				chunkedDevice->flush();
 			}
 		} break;
 			
@@ -128,9 +130,11 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 			if (!planner->nodes.empty()) {
 				stream.write(CMD_CURRENT_COST);
 				stream.write(planner->nodes.begin()->first);
+				chunkedDevice->flush();
 			} else {
 				// no more nodes, report failure
 				stream.write(CMD_NOPLAN_FOUND);
+				chunkedDevice->flush();
 				killPlanner();
 			}
 		} else {
@@ -138,6 +142,7 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 			for (SimplePlanner9::Plans::const_iterator it = planner->plans.begin(); it != planner->plans.end(); ++it) {
 				stream.write(CMD_PLAN_FOUND);
 				stream.write(planner->plans.front());
+				chunkedDevice->flush();
 			}
 			killPlanner();
 		}
@@ -172,7 +177,6 @@ bool MasterPlanner9::connectToSlave(const QString& hostName, quint16 port) {
 	connect(client, SIGNAL(disconnected()), client, SLOT(deleteLater()));
 	connect(client, SIGNAL(error(QAbstractSocket::SocketError)), SLOT(clientConnectionError(QAbstractSocket::SocketError)));
 	connect(client, SIGNAL(error(QAbstractSocket::SocketError)), client, SLOT(deleteLater()));
-	connect(client, SIGNAL(readyRead()), SLOT(networkDataAvailable()));
 }
 
 void MasterPlanner9::plan(const Problem& problem) {
@@ -188,14 +192,14 @@ void MasterPlanner9::plan(const Problem& problem) {
 	// TODO: handle possible race conditions
 	// - locking until clearing ?
 	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
-		QTcpSocket* client(it.key());
-		it.value() = Planner9::InfiniteCost;
-		sendScope(client);
+		Client& client = it.value();
+		client.cost = Planner9::InfiniteCost;
+		sendScope(client.device);
 	}
 	
 	// if one client
 	if (!clients.empty()) {
-		sendInitialNode(clients.begin().key());
+		sendInitialNode(clients.begin().value().device);
 	}
 }
 
@@ -208,13 +212,19 @@ void MasterPlanner9::noPlanFound() {
 }
 
 void MasterPlanner9::clientConnected() {
-	QTcpSocket* client(boost::polymorphic_downcast<QTcpSocket*>(sender()));
-	clients[client] = Planner9::InfiniteCost;
+	QTcpSocket* socket(boost::polymorphic_downcast<QTcpSocket*>(sender()));
+	ChunkedDevice* device = new ChunkedDevice(socket);
+	connect(device, SIGNAL(readyRead()), SLOT(messageAvailable()));
 	
-	sendScope(client);
+	Client client;
+	client.cost = Planner9::InfiniteCost;
+	client.device = device;
+	clients[socket] = client;
+	
+	sendScope(device);
 	
 	if (clients.size() == 1) {
-		sendInitialNode(clients.begin().key());
+		sendInitialNode(device);
 	}
 }
 
@@ -232,9 +242,10 @@ void MasterPlanner9::clientConnectionError(QAbstractSocket::SocketError socketEr
 	// TODO: manage disconnection, resend node of this one
 }
 
-void MasterPlanner9::networkDataAvailable() {
-	QTcpSocket* client(boost::polymorphic_downcast<QTcpSocket*>(sender()));
-	stream.setDevice(client);
+void MasterPlanner9::messageAvailable() {
+	ChunkedDevice* device(boost::polymorphic_downcast<ChunkedDevice*>(sender()));
+	QTcpSocket* socket = boost::polymorphic_downcast<QTcpSocket*>(device->parentDevice());
+	stream.setDevice(device);
 	
 	// fetch command from client
 	Command cmd(stream.read<Command>());
@@ -243,7 +254,7 @@ void MasterPlanner9::networkDataAvailable() {
 		// cost 
 		case CMD_CURRENT_COST: {
 			Planner9::Cost cost(stream.read<Planner9::Cost>());
-			clients[client] = cost;
+			clients[socket].cost = cost;
 			
 			// only one client, return
 			if (clients.size() <= 1)
@@ -251,12 +262,13 @@ void MasterPlanner9::networkDataAvailable() {
 			
 			// read the clients map to see whether another one has lower cost
 			for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
-				if (it.value() < cost)
+				if (it.value().cost < cost)
 					return; // another has lower cost, do nothing
 			}
 			
 			// we have lowest cost, get our best node
 			stream.write<Command>(CMD_GET_NODE);
+			device->flush();
 		} break;
 		
 		// node
@@ -271,14 +283,15 @@ void MasterPlanner9::networkDataAvailable() {
 			ClientsMap::iterator highestCostIt;
 			Planner9::Cost highestCost(0);
 			for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
-				if (it.value() > highestCost) {
-					highestCost = it.value();
+				Planner9::Cost cost = it.value().cost;
+				if (cost > highestCost) {
+					highestCost = cost;
 					highestCostIt = it;
 				}
 			}
 			
 			// send the node to it
-			sendNode(highestCostIt.key(), node);
+			sendNode(highestCostIt.value().device, node);
 		} break;
 		
 		// plan
@@ -287,8 +300,7 @@ void MasterPlanner9::networkDataAvailable() {
 			
 			// tell all clients to stop searching
 			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-				QTcpSocket* client(it.key());
-				sendStop(client);
+				sendStop(it.value().device);
 			}
 			
 			// print the plan
@@ -306,26 +318,30 @@ void MasterPlanner9::networkDataAvailable() {
 	}
 }
 
-void MasterPlanner9::sendScope(QTcpSocket* client) {
-	stream.setDevice(client);
+void MasterPlanner9::sendScope(ChunkedDevice* device) {
+	stream.setDevice(device);
 	stream.write(CMD_PROBLEM_SCOPE);
 	stream.write(problem.scope);
+	device->flush();
 }
 
-void MasterPlanner9::sendInitialNode(QTcpSocket* client) {
-	stream.setDevice(client);
+void MasterPlanner9::sendInitialNode(ChunkedDevice* device) {
+	stream.setDevice(device);
 	stream.write(CMD_PUSH_NODE);
 	stream.write(*initialNode);
+	device->flush();
 }
 
-void MasterPlanner9::sendNode(QTcpSocket* client, const SimplePlanner9::SearchNode& node) {
-	stream.setDevice(client);
+void MasterPlanner9::sendNode(ChunkedDevice* device, const SimplePlanner9::SearchNode& node) {
+	stream.setDevice(device);
 	stream.write(CMD_PUSH_NODE);
 	stream.write(node);
+	device->flush();
 }
 
-void MasterPlanner9::sendStop(QTcpSocket* client) {
-	stream.setDevice(client);
+void MasterPlanner9::sendStop(ChunkedDevice* device) {
+	stream.setDevice(device);
 	stream.write(CMD_STOP);
+	device->flush();
 }
 	
