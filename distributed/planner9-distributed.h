@@ -65,6 +65,9 @@ protected:
 	
 private:
 	struct Client {
+		Client();
+		Client(ChunkedDevice* device);
+		
 		ChunkedDevice* device;
 		Planner9::Cost cost;
 	};

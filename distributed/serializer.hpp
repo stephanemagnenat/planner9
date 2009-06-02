@@ -28,6 +28,7 @@ struct Serializer: public QDataStream {
 	
 	const Domain& domain;
 };
+
 /*
 TODO: examples for safe network operations
 bool sendCurrentCost(const Domain& domain, QAbstractSocket* socket, const Planner9::Cost& cost);

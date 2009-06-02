@@ -28,6 +28,8 @@ int runMaster(int argc, char* argv[]) {
 	
 	MasterPlanner9 masterPlanner(problem);
 	
+	masterPlanner.plan(problem);
+	
 	for (int i = 2; i < argc; i+=2) {
 		masterPlanner.connectToSlave(argv[i], atoi(argv[i+1]));
 	}

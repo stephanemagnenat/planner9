@@ -18,6 +18,9 @@ public:
 	qint64 writeData(const char* data, qint64 maxSize);
 	bool flush();
 
+signals:
+	void disconnected();
+
 protected slots:
 	void parentReadyRead();
 
