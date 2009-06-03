@@ -59,7 +59,13 @@ void Serializer::write(const CNF& cnf) {
 
 template<>
 void Serializer::write(const State& state) {
-	const size_t atomsCount(state.atoms.size());
+	size_t atomsCount(0);
+	
+	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
+		const State::AtomSet& atomSet(it->second);
+		atomsCount += atomSet.size();
+	}
+	
 	write<quint16>(atomsCount);
 	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
 		const State::AtomSet& atomSet(it->second);
@@ -210,7 +216,7 @@ TaskNetwork Serializer::read() {
 		const Task task(read<Task>());
 		TaskNetwork::Node* node(new TaskNetwork::Node(task));
 		const size_t successorsCount(read<quint16>());
-		node->successors.resize(successorsCount);
+		node->successors.reserve(successorsCount);
 		for (size_t j = 0; j < successorsCount; ++j) {
 			node->successors.push_back((TaskNetwork::Node*)read<quint16>());
 		}
@@ -224,7 +230,7 @@ TaskNetwork Serializer::read() {
 		const Task task(read<Task>());
 		TaskNetwork::Node* node(new TaskNetwork::Node(task));
 		const size_t successorsCount(read<quint16>());
-		node->successors.resize(successorsCount);
+		node->successors.reserve(successorsCount);
 		for (size_t j = 0; j < successorsCount; ++j) {
 			node->successors.push_back((TaskNetwork::Node*)read<quint16>());
 		}
