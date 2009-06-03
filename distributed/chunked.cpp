@@ -1,6 +1,7 @@
 #include "chunked.h"
 #include <QDataStream>
 #include <QtDebug>
+#include <cassert>
 
 #include "chunked.moc"
 
@@ -26,6 +27,16 @@ bool ChunkedDevice::open(OpenMode mode) {
 
 void ChunkedDevice::parentReadyRead() {
 	QIODevice* device = parentDevice();
+	if (readBuffer.isReadable() && readBuffer.atEnd()
+	 && device->bytesAvailable() >= sizeof(qint64)) {
+		QDataStream stream(device);
+		qint64 size;
+		stream >> size;
+		assert(size > 0);
+		readBuffer.buffer().resize(size);
+		readBuffer.close();
+		readBuffer.open(WriteOnly);
+	}
 	if (readBuffer.isWritable()) {
 		qint64 bytesToRead = readBuffer.size() - readBuffer.pos();
 		if (bytesToRead > 0) {
@@ -35,18 +46,6 @@ void ChunkedDevice::parentReadyRead() {
 				readBuffer.open(ReadOnly);
 				emit readyRead();
 			}
-		}
-	} else if (readBuffer.atEnd() && device->bytesAvailable() >= sizeof(qint64)) {
-		QDataStream stream(device);
-		qint64 size;
-		stream >> size;
-		if (size > 0) {
-			readBuffer.buffer().resize(size);
-			readBuffer.close();
-			readBuffer.open(WriteOnly);
-		}
-		if (device->bytesAvailable() > 0) {
-			parentReadyRead();
 		}
 	}
 }
