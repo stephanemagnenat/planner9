@@ -216,7 +216,7 @@ TaskNetwork Serializer::read() {
 		const Task task(read<Task>());
 		TaskNetwork::Node* node(new TaskNetwork::Node(task));
 		const size_t successorsCount(read<quint16>());
-		node->successors.resize(successorsCount);
+		node->successors.reserve(successorsCount);
 		for (size_t j = 0; j < successorsCount; ++j) {
 			node->successors.push_back((TaskNetwork::Node*)read<quint16>());
 		}
@@ -230,7 +230,7 @@ TaskNetwork Serializer::read() {
 		const Task task(read<Task>());
 		TaskNetwork::Node* node(new TaskNetwork::Node(task));
 		const size_t successorsCount(read<quint16>());
-		node->successors.resize(successorsCount);
+		node->successors.reserve(successorsCount);
 		for (size_t j = 0; j < successorsCount; ++j) {
 			node->successors.push_back((TaskNetwork::Node*)read<quint16>());
 		}

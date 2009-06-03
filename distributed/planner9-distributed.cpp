@@ -94,6 +94,7 @@ void SlavePlanner9::messageAvailable() {
 		// new node to insert
 		case CMD_PUSH_NODE: {
 			SimplePlanner9::SearchNode* node(new SimplePlanner9::SearchNode(stream.read<SimplePlanner9::SearchNode>()));
+			//std::cerr << "received:\n" << (*node) << "\ndone" << std::endl;
 			assert(planner);
 			if (planner->nodes.empty())
 				timerId = startTimer(0);
@@ -105,6 +106,7 @@ void SlavePlanner9::messageAvailable() {
 			if (planner && !planner->nodes.empty()) {
 				stream.write(CMD_PUSH_NODE);
 				stream.write(*(planner->nodes.begin()->second));
+				if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
 				chunkedDevice->flush();
 				planner->nodes.erase(planner->nodes.begin());
 			}
@@ -215,6 +217,7 @@ void MasterPlanner9::plan(const Problem& problem) {
 		*debugStream << "initial network: " << problem.network << std::endl;
 	}
 	this->problem = problem;
+	
 	if (initialNode)
 		delete initialNode;
 	initialNode = new Planner9::SearchNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
@@ -254,6 +257,7 @@ void MasterPlanner9::clientConnected() {
 	sendScope(device);
 	
 	if (clients.size() == 1) {
+		if (debugStream) *debugStream << "Sending:\n" << *initialNode << "\ndone" << std::endl;
 		sendInitialNode(device);
 	}
 }
@@ -326,9 +330,9 @@ void MasterPlanner9::messageAvailable() {
 			}
 			
 			qDebug() << "Load balance" << device << highestCostIt.value().device;
-			if (debugStream) *debugStream << node << std::endl;
 			
 			// send the node to it
+			if (debugStream) *debugStream  << "sending:\n" << node << "\ndone" << std::endl;
 			sendNode(highestCostIt.value().device, node);
 		} break;
 		
