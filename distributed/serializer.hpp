@@ -2,6 +2,7 @@
 #define SERIALIZER_HPP_
 
 #include <QDataStream>
+#include <QtDebug>
 #include "../core/planner9.hpp"
 
 enum Command {
@@ -28,12 +29,5 @@ struct Serializer: public QDataStream {
 	
 	const Domain& domain;
 };
-
-/*
-TODO: examples for safe network operations
-bool sendCurrentCost(const Domain& domain, QAbstractSocket* socket, const Planner9::Cost& cost);
-Cost getCurrentCost(const Domain& domain, QAbstractSocket* socket, bool* ok);
-
-*/
 
 #endif // SERIALIZER_HPP_

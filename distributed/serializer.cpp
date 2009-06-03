@@ -59,7 +59,13 @@ void Serializer::write(const CNF& cnf) {
 
 template<>
 void Serializer::write(const State& state) {
-	const size_t atomsCount(state.atoms.size());
+	size_t atomsCount(0);
+	
+	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
+		const State::AtomSet& atomSet(it->second);
+		atomsCount += atomSet.size();
+	}
+	
 	write<quint16>(atomsCount);
 	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
 		const State::AtomSet& atomSet(it->second);

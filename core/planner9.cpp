@@ -26,7 +26,7 @@ std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 	os << "after " << node.plan << std::endl;
 	os << "do " << node.network << std::endl;
 	os << "such that " << node.preconditions << std::endl;
-	//os << "knowing " << node.state << std::endl;
+	os << "knowing " << node.state << std::endl;
 	return os;
 }
 
@@ -38,6 +38,7 @@ Planner9::Cost Planner9::SearchNode::getTotalCost() const {
 Planner9::Planner9(const Scope& problemScope, std::ostream* debugStream):
 	problemScope(problemScope),
 	debugStream(debugStream) {
+	if (debugStream) *debugStream << Scope::setScope(this->problemScope); 
 }
 
 void Planner9::visitNode(const SearchNode* n) {
@@ -331,7 +332,7 @@ SimplePlanner9::SimplePlanner9(const Scope& problemScope, std::ostream* debugStr
 SimplePlanner9::SimplePlanner9(const Problem& problem, std::ostream* debugStream):
 	Planner9(problem.scope, debugStream),
 	iterationCount(0) {
-
+	
 	// HTN: P = the empty plan
 	Planner9::pushNode(Plan(), problem.network, problemScope.getSize(), 0, CNF(), problem.state);
 	

@@ -16,6 +16,7 @@ int runSlave(int argc, char* argv[]) {
 	
 	MyProblem problem;
 	
+	//SlavePlanner9 slavePlanner(problem, &std::cerr);
 	SlavePlanner9 slavePlanner(problem);
 	
 	return app.exec();
@@ -26,7 +27,7 @@ int runMaster(int argc, char* argv[]) {
 	
 	MyProblem problem;
 	
-	MasterPlanner9 masterPlanner(problem);
+	MasterPlanner9 masterPlanner(problem, &std::cerr);
 	
 	masterPlanner.plan(problem);
 	

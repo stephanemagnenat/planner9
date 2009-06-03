@@ -16,7 +16,7 @@ struct SlavePlanner9: QObject {
 	Q_OBJECT
 	
 public:
-	SlavePlanner9(const Domain& domain);
+	SlavePlanner9(const Domain& domain, std::ostream* debugStream = 0);
 
 protected slots:
 	void newConnection();
@@ -33,6 +33,7 @@ private:
 	ChunkedDevice* chunkedDevice;
 	QTcpServer tcpServer;
 	Serializer stream;
+	std::ostream* debugStream;
 };
 
 struct MasterPlanner9: QObject {
@@ -40,7 +41,7 @@ struct MasterPlanner9: QObject {
 	Q_OBJECT
 
 public:
-	MasterPlanner9(const Domain& domain);
+	MasterPlanner9(const Domain& domain, std::ostream* debugStream = 0);
 	~MasterPlanner9();
 	
 	bool connectToSlave(const QString& hostName, quint16 port);
@@ -77,6 +78,7 @@ private:
 	typedef QMap<QTcpSocket*, Client> ClientsMap;
 	ClientsMap clients;
 	Serializer stream;
+	std::ostream* debugStream;
 };
 
 

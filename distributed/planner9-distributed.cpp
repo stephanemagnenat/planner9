@@ -31,10 +31,11 @@ template<> TaskNetwork Serializer::read();
 template<> Planner9::SearchNode Serializer::read();
 
 
-SlavePlanner9::SlavePlanner9(const Domain& domain):
+SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
 	planner(0),
 	chunkedDevice(0),
-	stream(domain) {
+	stream(domain),
+	debugStream(debugStream) {
 	
 	tcpServer.setMaxPendingConnections(1);
 	
@@ -44,7 +45,7 @@ SlavePlanner9::SlavePlanner9(const Domain& domain):
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
 	
-	qDebug() << "Listening on " << tcpServer.serverPort();
+	std::cout << "Listening on port " << tcpServer.serverPort() << std::endl;
 }
 
 void SlavePlanner9::newConnection() {
@@ -60,7 +61,7 @@ void SlavePlanner9::newConnection() {
 	connect(chunkedDevice, SIGNAL(disconnected()), SLOT(disconnected()));
 	connect(chunkedDevice, SIGNAL(readyRead()), SLOT(messageAvailable()));
 	
-	qDebug() << "Connection" << chunkedDevice << "from" << clientConnection->peerAddress();
+	if (debugStream) *debugStream << "Connection from " << clientConnection->peerAddress().toString().toStdString() << std::endl;
 }
 
 void SlavePlanner9::disconnected() {
@@ -70,7 +71,7 @@ void SlavePlanner9::disconnected() {
 		planner = 0;
 	}
 	
-	qDebug() << "Connection closed"  << chunkedDevice;
+	if (debugStream) *debugStream << "Connection closed"  << std::endl;
 	
 	chunkedDevice->deleteLater();
 	chunkedDevice = 0;
@@ -79,7 +80,7 @@ void SlavePlanner9::disconnected() {
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
 	
-	qDebug() << "Listening on " << tcpServer.serverPort();
+	std::cout << "Listening on port " << tcpServer.serverPort() << std::endl;
 }
 
 
@@ -110,10 +111,10 @@ void SlavePlanner9::messageAvailable() {
 			
 		// new problem scope
 		case CMD_PROBLEM_SCOPE: {
-			Scope scope(stream.read<Scope>());
 			if (planner)
 				delete planner;
-			planner = new SimplePlanner9(scope);
+			Scope scope(stream.read<Scope>());
+			planner = new SimplePlanner9(scope, debugStream);
 		} break;
 			
 		// stop processing
@@ -178,9 +179,10 @@ MasterPlanner9::Client::Client(ChunkedDevice* device) :
 	cost(Planner9::InfiniteCost) {
 }
 
-MasterPlanner9::MasterPlanner9(const Domain& domain):
+MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	initialNode(0),
-	stream(domain) {
+	stream(domain),
+	debugStream(debugStream) {
 }
 
 MasterPlanner9::~MasterPlanner9() {
@@ -203,9 +205,11 @@ bool MasterPlanner9::connectToSlave(const QString& hostName, quint16 port) {
 }
 
 void MasterPlanner9::plan(const Problem& problem) {
-	std::cout << Scope::setScope(problem.scope);
-	std::cout << "initial state: "<< problem.state << std::endl;
-	std::cout << "initial network: " << problem.network << std::endl;
+	if (debugStream) {
+		*debugStream << Scope::setScope(problem.scope);
+		*debugStream << "initial state: "<< problem.state << std::endl;
+		*debugStream << "initial network: " << problem.network << std::endl;
+	}
 	this->problem = problem;
 	if (initialNode)
 		delete initialNode;
@@ -227,11 +231,11 @@ void MasterPlanner9::plan(const Problem& problem) {
 }
 
 void MasterPlanner9::planFound(const Plan& plan) {
-	std::cout << "plan:\n" << plan << std::endl;
+	if (debugStream) *debugStream << "plan:\n" << plan << std::endl;
 }
 
 void MasterPlanner9::noPlanFound() {
-	std::cout << "no plan." << std::endl;
+	if (debugStream) *debugStream << "no plan." << std::endl;
 }
 
 void MasterPlanner9::clientConnected() {
@@ -241,7 +245,7 @@ void MasterPlanner9::clientConnected() {
 	
 	clients[socket] = Client(device);
 	
-	qDebug() << "New client" << device;
+	if (debugStream) *debugStream << "New client" << device;
 	
 	sendScope(device);
 	
@@ -335,7 +339,7 @@ void MasterPlanner9::messageAvailable() {
 		// no plan for this client
 		case CMD_NOPLAN_FOUND: {
 			// TODO: check whether a client still has work, otherwise report general failure
-		};
+		} break;
 			
 		default:
 			throw std::runtime_error(tr("Unknown command received: %0").arg(cmd).toStdString());

@@ -37,9 +37,6 @@ int main(int argc, char* argv[]) {
 	std::cout << "initial state: "<< problem.state << std::endl;
 	std::cout << "initial network: " << problem.network << std::endl;
 	
-	if (dump)
-		*dump << Scope::setScope(problem.scope);
-	
 	ThreadedPlanner9 planner(problem, threadsCount, dump);
 
 	boost::optional<Plan> plan = planner.plan();
