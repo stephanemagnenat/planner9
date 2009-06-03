@@ -104,8 +104,9 @@ void SlavePlanner9::messageAvailable() {
 		case CMD_GET_NODE: {
 			if (planner && !planner->nodes.empty()) {
 				stream.write(CMD_PUSH_NODE);
-				stream.write(planner->nodes.begin()->second);
+				stream.write(*(planner->nodes.begin()->second));
 				chunkedDevice->flush();
+				planner->nodes.erase(planner->nodes.begin());
 			}
 		} break;
 			
@@ -141,17 +142,20 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 		if (planner->plans.empty()) {
 			// report progress to master
 			if (!planner->nodes.empty()) {
+				qDebug() << "current cost" << planner->nodes.begin()->first;
 				stream.write(CMD_CURRENT_COST);
 				stream.write(planner->nodes.begin()->first);
 				chunkedDevice->flush();
 			} else {
 				// no more nodes, report failure
+				qDebug() << "no plan found";
 				stream.write(CMD_NOPLAN_FOUND);
 				chunkedDevice->flush();
 				killPlanner();
 			}
 		} else {
 			// report plan
+			qDebug() << "plan found";
 			for (SimplePlanner9::Plans::const_iterator it = planner->plans.begin(); it != planner->plans.end(); ++it) {
 				stream.write(CMD_PLAN_FOUND);
 				stream.write(planner->plans.front());
@@ -283,7 +287,7 @@ void MasterPlanner9::messageAvailable() {
 			Planner9::Cost cost(stream.read<Planner9::Cost>());
 			Client& client(clients[socket]);
 			client.cost = cost;
-			qDebug() << "Slave" << client.device << cost;
+			qDebug() << "Cost" << client.device << cost;
 			
 			// only one client, return
 			if (clients.size() <= 1)
@@ -294,6 +298,8 @@ void MasterPlanner9::messageAvailable() {
 				if (it.value().cost < cost)
 					return; // another has lower cost, do nothing
 			}
+			
+			qDebug() << "Min cost" << client.device;
 			
 			// we have lowest cost, get our best node
 			stream.write<Command>(CMD_GET_NODE);
@@ -319,6 +325,9 @@ void MasterPlanner9::messageAvailable() {
 				}
 			}
 			
+			qDebug() << "Load balance" << device << highestCostIt.value().device;
+			if (debugStream) *debugStream << node << std::endl;
+			
 			// send the node to it
 			sendNode(highestCostIt.value().device, node);
 		} break;
@@ -337,7 +346,7 @@ void MasterPlanner9::messageAvailable() {
 		} break;
 		
 		// no plan for this client
-		case CMD_NOPLAN_FOUND: {
+		case CMD_NOPLAN_FOUND: {	
 			// TODO: check whether a client still has work, otherwise report general failure
 		} break;
 			

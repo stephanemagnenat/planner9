@@ -24,7 +24,6 @@ bool ChunkedDevice::open(OpenMode mode) {
 }
 
 void ChunkedDevice::parentReadyRead() {
-	qDebug() << "Got data" << this;
 	QIODevice* device = parentDevice();
 	if (readBuffer.isWritable()) {
 		qint64 bytesToRead = readBuffer.size() - readBuffer.pos();
@@ -40,7 +39,6 @@ void ChunkedDevice::parentReadyRead() {
 		QDataStream stream(device);
 		qint64 size;
 		stream >> size;
-		qDebug() << "in size" << size;
 		if (size > 0) {
 			readBuffer.buffer().resize(size);
 			readBuffer.close();
@@ -76,7 +74,6 @@ bool ChunkedDevice::flush() {
 		QDataStream stream(device);
 		qint64 bytes = writeBuffer.pos();
 		stream << bytes;
-		qDebug() << "out size" << bytes;
 		device->write(writeBuffer.buffer().data(), bytes);
 		emit bytesWritten(sizeof(qint64) + bytes);
 		writeBuffer.reset();
