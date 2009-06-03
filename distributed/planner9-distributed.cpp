@@ -34,6 +34,7 @@ template<> Planner9::SearchNode Serializer::read();
 
 SlavePlanner9::SlavePlanner9(const Domain& domain):
 	planner(0),
+	device(0),
 	stream(domain) {
 	
 	tcpServer.setMaxPendingConnections(1);
@@ -44,19 +45,23 @@ SlavePlanner9::SlavePlanner9(const Domain& domain):
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
 	
-	qDebug() << "listening on " << tcpServer.serverPort();
+	qDebug() << "Listening on " << tcpServer.serverPort();
 }
 
 void SlavePlanner9::newConnection() {
+	Q_ASSERT(device == 0);
 	
+	QTcpSocket* socket = tcpServer.nextPendingConnection();
+	Q_ASSERT(socket);
 	tcpServer.close();
-	QTcpSocket *socket = tcpServer.nextPendingConnection();
+	
 	device = new ChunkedDevice(socket);
 	stream.setDevice(device);
 	
 	connect(device, SIGNAL(disconnected()), SLOT(disconnected()));
 	connect(device, SIGNAL(readyRead()), SLOT(messageAvailable()));
 	
+	qDebug() << "Connection" << device << "from" << socket->peerAddress();
 }
 
 void SlavePlanner9::disconnected() {
@@ -66,17 +71,24 @@ void SlavePlanner9::disconnected() {
 		planner = 0;
 	}
 	
-	device->parent()->deleteLater();
+	qDebug() << "Connection closed"  << device;
+	
+	device->deleteLater();
+	device = 0;
 	
 	if (!tcpServer.listen()) {
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
+	
+	qDebug() << "Listening on " << tcpServer.serverPort();
 }
 
 
 void SlavePlanner9::messageAvailable() {
 	// fetch command from master
 	Command cmd(stream.read<Command>());
+	
+	qDebug() << "Cmd" << cmd;
 	
 	switch (cmd) {
 		// new node to insert
@@ -157,6 +169,16 @@ void SlavePlanner9::killPlanner() {
 }
 
 
+MasterPlanner9::Client::Client() :
+	device(0),
+	cost(Planner9::InfiniteCost) {
+}
+
+MasterPlanner9::Client::Client(ChunkedDevice* device) :
+	device(device),
+	cost(Planner9::InfiniteCost) {
+}
+
 MasterPlanner9::MasterPlanner9(const Domain& domain):
 	initialNode(0),
 	stream(domain) {
@@ -218,10 +240,9 @@ void MasterPlanner9::clientConnected() {
 	ChunkedDevice* device = new ChunkedDevice(socket);
 	connect(device, SIGNAL(readyRead()), SLOT(messageAvailable()));
 	
-	Client client;
-	client.cost = Planner9::InfiniteCost;
-	client.device = device;
-	clients[socket] = client;
+	clients[socket] = Client(device);
+	
+	qDebug() << "New client" << device;
 	
 	sendScope(device);
 	
@@ -251,12 +272,15 @@ void MasterPlanner9::messageAvailable() {
 	
 	// fetch command from client
 	Command cmd(stream.read<Command>());
+	qDebug() << "Cmd" << cmd;
 	
 	switch (cmd) {
 		// cost 
 		case CMD_CURRENT_COST: {
 			Planner9::Cost cost(stream.read<Planner9::Cost>());
-			clients[socket].cost = cost;
+			Client& client(clients[socket]);
+			client.cost = cost;
+			qDebug() << "Slave" << client.device << cost;
 			
 			// only one client, return
 			if (clients.size() <= 1)
