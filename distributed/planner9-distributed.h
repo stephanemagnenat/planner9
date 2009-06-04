@@ -3,6 +3,7 @@
 
 #include <QTcpServer>
 #include <QSet>
+#include <QTime>
 #include "serializer.hpp"
 #include "chunked.h"
 #include "../core/problem.hpp"
@@ -25,7 +26,10 @@ protected slots:
 
 protected:
 	virtual void timerEvent(QTimerEvent *event);
+	void runPlanner(const Scope& scope);
 	void killPlanner();
+	void runTimer();
+	void stopTimer();
 		
 private:
 	int timerId;
@@ -33,12 +37,21 @@ private:
 	ChunkedDevice* device;
 	QTcpServer tcpServer;
 	Serializer stream;
+	Planner9::Cost lastSentCost;
 	std::ostream* debugStream;
 };
 
 struct MasterPlanner9: QObject {
 	
 	Q_OBJECT
+	
+	struct Client {
+		Client();
+		Client(ChunkedDevice* device);
+		
+		ChunkedDevice* device;
+		Planner9::Cost cost;
+	};
 
 public:
 	MasterPlanner9(const Domain& domain, std::ostream* debugStream = 0);
@@ -59,25 +72,27 @@ protected slots:
 	void messageAvailable();
 	
 protected:
+	void processMessage(Client& client);
+	void startSearchIfReady();
+	void stopClients();
+	
+	void sendGetNode(ChunkedDevice* device);
 	void sendScope(ChunkedDevice* client);
 	void sendInitialNode(ChunkedDevice* client);
 	void sendNode(ChunkedDevice* client, const SimplePlanner9::SearchNode& node);
 	void sendStop(ChunkedDevice* client);
 	
 private:
-	struct Client {
-		Client();
-		Client(ChunkedDevice* device);
-		
-		ChunkedDevice* device;
-		Planner9::Cost cost;
-	};
+	
 
 	Problem problem;
 	Planner9::SearchNode *initialNode;
 	typedef QMap<QTcpSocket*, Client> ClientsMap;
 	ClientsMap clients;
 	Serializer stream;
+	QTime planStartTime;
+	int stoppingCount;
+	bool newSearch;
 	std::ostream* debugStream;
 };
 
