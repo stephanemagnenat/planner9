@@ -141,10 +141,12 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 		// and not polling of the event loop
 		// plan for a specified duration
 		QTime sliceStartingTime(QTime::currentTime());
-		while (sliceStartingTime.msecsTo(QTime::currentTime()) < 50) {
+		while (sliceStartingTime.msecsTo(QTime::currentTime()) < 10) {
 			if (!planner->plan(1))
 				break;
 		}
+		
+		planner->plan(1);
 		
 		// if plan found
 		if (planner->plans.empty()) {
@@ -196,8 +198,10 @@ void SlavePlanner9::runTimer() {
 }
 
 void SlavePlanner9::stopTimer() {
-	if (timerId != -1)
+	if (timerId != -1) {
 		killTimer(timerId);
+		timerId = -1;
+	}
 }
 
 /////
