@@ -32,6 +32,7 @@ void ChunkedDevice::parentReadyRead() {
 			if (readBuffer.atEnd()) {
 				readBuffer.close();
 				readBuffer.open(ReadOnly);
+				qDebug() << "* received message of size " << readBuffer.size();
 				emit readyRead();
 			}
 		}
@@ -75,6 +76,7 @@ bool ChunkedDevice::flush() {
 		qint64 bytes = writeBuffer.pos();
 		stream << bytes;
 		device->write(writeBuffer.buffer().data(), bytes);
+		qDebug() << "* sending message of size " << writeBuffer.size();
 		emit bytesWritten(sizeof(qint64) + bytes);
 		writeBuffer.reset();
 		return true;

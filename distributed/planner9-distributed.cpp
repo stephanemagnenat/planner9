@@ -32,6 +32,7 @@ template<> Planner9::SearchNode Serializer::read();
 
 
 SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
+	timerId(-1),
 	planner(0),
 	chunkedDevice(0),
 	stream(domain),
@@ -65,11 +66,8 @@ void SlavePlanner9::newConnection() {
 }
 
 void SlavePlanner9::disconnected() {
-	if (planner) {
-		killTimer(timerId);
-		delete planner;
-		planner = 0;
-	}
+	stopTimer();
+	killPlanner();
 	
 	if (debugStream) *debugStream << "Connection closed"  << std::endl;
 	
@@ -95,10 +93,10 @@ void SlavePlanner9::messageAvailable() {
 		case CMD_PUSH_NODE: {
 			SimplePlanner9::SearchNode* node(new SimplePlanner9::SearchNode(stream.read<SimplePlanner9::SearchNode>()));
 			//std::cerr << "received:\n" << (*node) << "\ndone" << std::endl;
+			qDebug() << "inserting node of cost" << node->getTotalCost();
 			assert(planner);
-			if (planner->nodes.empty())
-				timerId = startTimer(0);
 			planner->pushNode(node);
+			runTimer();
 		} break;
 			
 		// node to send
@@ -108,25 +106,25 @@ void SlavePlanner9::messageAvailable() {
 				stream.write(*(planner->nodes.begin()->second));
 				if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
 				chunkedDevice->flush();
+				qDebug() << "sending node of cost" << planner->nodes.begin()->first;
 				planner->nodes.erase(planner->nodes.begin());
 			}
 		} break;
 			
 		// new problem scope
 		case CMD_PROBLEM_SCOPE: {
-			if (planner)
-				delete planner;
-			Scope scope(stream.read<Scope>());
-			planner = new SimplePlanner9(scope, debugStream);
+			killPlanner();
+			const Scope scope(stream.read<Scope>());
+			runPlanner(scope);
 		} break;
 			
 		// stop processing
 		case CMD_STOP: {
-			if (planner) {
-				killTimer(timerId);
-				delete planner;
-				planner = 0;
-			}
+			stopTimer();
+			killPlanner();
+			// acknowledge stop
+			stream.write(CMD_STOP);
+			chunkedDevice->flush();
 		} break;
 			
 		default:
@@ -137,23 +135,33 @@ void SlavePlanner9::messageAvailable() {
 
 void SlavePlanner9::timerEvent(QTimerEvent *event) {
 	if (planner) {
-		// plan for a while
-		planner->plan(100);
+		// TODO: improve the performances of this loop by using a thread
+		// and not polling of the event loop
+		// plan for a specified duration
+		QTime sliceStartingTime(QTime::currentTime());
+		while (sliceStartingTime.msecsTo(QTime::currentTime()) < 50) {
+			if (!planner->plan(1))
+				break;
+		}
 		
 		// if plan found
 		if (planner->plans.empty()) {
 			// report progress to master
 			if (!planner->nodes.empty()) {
-				qDebug() << "current cost" << planner->nodes.begin()->first;
-				stream.write(CMD_CURRENT_COST);
-				stream.write(planner->nodes.begin()->first);
-				chunkedDevice->flush();
+				const Planner9::Cost currentCost(planner->nodes.begin()->first);
+				if (currentCost != lastSentCost) {
+					qDebug() << "new current cost" << currentCost;
+					stream.write(CMD_CURRENT_COST);
+					stream.write(planner->nodes.begin()->first);
+					chunkedDevice->flush();
+					lastSentCost = currentCost;
+				}
 			} else {
 				// no more nodes, report failure
 				qDebug() << "no plan found";
 				stream.write(CMD_NOPLAN_FOUND);
 				chunkedDevice->flush();
-				killPlanner();
+				stopTimer();
 			}
 		} else {
 			// report plan
@@ -162,18 +170,35 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 				stream.write(CMD_PLAN_FOUND);
 				stream.write(planner->plans.front());
 				chunkedDevice->flush();
+				// TODO: if required, put into idle until new problem
 			}
-			killPlanner();
+			stopTimer();
 		}
 	}
 }
 
-void SlavePlanner9::killPlanner() {
-	killTimer(timerId);
-	delete planner;
-	planner = 0;
+void SlavePlanner9::runPlanner(const Scope& scope) {
+	planner = new SimplePlanner9(scope, debugStream);
+	lastSentCost = Planner9::InfiniteCost;
 }
 
+void SlavePlanner9::killPlanner() {
+	if (planner) {
+		delete planner;
+		planner = 0;
+	}
+}
+
+void SlavePlanner9::runTimer() {
+	timerId = startTimer(0);
+}
+
+void SlavePlanner9::stopTimer() {
+	if (timerId != -1)
+		killTimer(timerId);
+}
+
+/////
 
 MasterPlanner9::Client::Client() :
 	device(0),
@@ -188,7 +213,9 @@ MasterPlanner9::Client::Client(ChunkedDevice* device) :
 MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	initialNode(0),
 	stream(domain),
-	debugStream(debugStream) {
+	debugStream(debugStream),
+	stoppingCount(0),
+	newSearch(false) {
 }
 
 MasterPlanner9::~MasterPlanner9() {
@@ -221,28 +248,23 @@ void MasterPlanner9::plan(const Problem& problem) {
 	if (initialNode)
 		delete initialNode;
 	initialNode = new Planner9::SearchNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
+	newSearch = true;
 	
-	// send scope to every client to clear their current computations
-	// TODO: handle possible race conditions
-	// - locking until clearing ?
-	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
-		Client& client = it.value();
-		client.cost = Planner9::InfiniteCost;
-		sendScope(client.device);
-	}
+	stopClients();
 	
-	// if one client
-	if (!clients.empty()) {
-		sendInitialNode(clients.begin().value().device);
-	}
+	startSearchIfReady();
+	
+	planStartTime = QTime::currentTime();
 }
 
 void MasterPlanner9::planFound(const Plan& plan) {
-	if (debugStream) *debugStream << "plan:\n" << plan << std::endl;
+	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
+	if (debugStream) *debugStream << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
 }
 
 void MasterPlanner9::noPlanFound() {
-	if (debugStream) *debugStream << "no plan." << std::endl;
+	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
+	if (debugStream) *debugStream << "After " << planningDuration << " ms, no plan." << std::endl;
 }
 
 void MasterPlanner9::clientConnected() {
@@ -289,21 +311,31 @@ void MasterPlanner9::messageAvailable() {
 		// cost 
 		case CMD_CURRENT_COST: {
 			Planner9::Cost cost(stream.read<Planner9::Cost>());
+			
+			// ignore if stopping
+			if (stoppingCount > 0)
+				return;
+			
 			Client& client(clients[socket]);
 			client.cost = cost;
-			qDebug() << "Cost" << client.device << cost;
+			
+			std::cerr << "Cost map: ";
+			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+				std::cerr << it.value().device << ": " << it.value().cost << "\t";
+			}
+			std::cerr << std::endl;
 			
 			// only one client, return
 			if (clients.size() <= 1)
 				return;
 			
 			// read the clients map to see whether another one has lower cost
-			for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
+			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
 				if (it.value().cost < cost)
 					return; // another has lower cost, do nothing
 			}
 			
-			qDebug() << "Min cost" << client.device;
+			std::cerr  << "Min cost " << client.device << std::endl;
 			
 			// we have lowest cost, get our best node
 			stream.write<Command>(CMD_GET_NODE);
@@ -313,6 +345,10 @@ void MasterPlanner9::messageAvailable() {
 		// node
 		case CMD_PUSH_NODE: {
 			SimplePlanner9::SearchNode node(stream.read<SimplePlanner9::SearchNode>());
+			
+			// ignore if stopping
+			if (stoppingCount > 0)
+				return;
 			
 			// only one client, return
 			if (clients.size() <= 1)
@@ -329,35 +365,94 @@ void MasterPlanner9::messageAvailable() {
 				}
 			}
 			
-			qDebug() << "Load balance" << device << highestCostIt.value().device;
+			std::cerr  << "Load balancing " << device << " to " <<highestCostIt.value().device << " cost " << node.getTotalCost() << std::endl;
 			
-			// send the node to it
+			// send the node to it and update cost
 			if (debugStream) *debugStream  << "sending:\n" << node << "\ndone" << std::endl;
 			sendNode(highestCostIt.value().device, node);
+			highestCostIt.value().cost = std::min(node.getTotalCost(), highestCostIt.value().cost);
 		} break;
 		
 		// plan
 		case CMD_PLAN_FOUND: {
 			const Plan plan(stream.read<Plan>());
 			
-			// tell all clients to stop searching
-			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-				sendStop(it.value().device);
-			}
+			// ignore if stopping
+			if (stoppingCount > 0)
+				return;
+			
+			stopClients();
 			
 			// print the plan
 			planFound(plan);
 		} break;
 		
 		// no plan for this client
-		case CMD_NOPLAN_FOUND: {	
-			// TODO: check whether a client still has work, otherwise report general failure
+		case CMD_NOPLAN_FOUND: {
+			
+			// ignore if stopping
+			if (stoppingCount > 0)
+				return;
+			
+			Client& client(clients[socket]);
+			client.cost = Planner9::InfiniteCost;
+			
+			bool stillSearching(false);
+			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+				if (it.value().cost != Planner9::InfiniteCost) {
+					stillSearching = true;
+				}
+			}
+			
+			if (stillSearching == false) {
+				// notify failure
+				noPlanFound();
+			}
+		} break;
+			
+		// stop acknowledge
+		case CMD_STOP: {
+			stoppingCount--;
+			startSearchIfReady();
 		} break;
 			
 		default:
 			throw std::runtime_error(tr("Unknown command received: %0").arg(cmd).toStdString());
 			break;
 	}
+}
+
+void MasterPlanner9::startSearchIfReady() {
+	// ignore if stopping
+	if (stoppingCount > 0)
+		return;
+	
+	// do not redo the same search twice
+	if (!newSearch)
+		return;
+	newSearch = false;
+	
+	// send scope to every client to clear their current computations
+	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
+		Client& client = it.value();
+		client.cost = Planner9::InfiniteCost;
+		sendScope(client.device);
+	}
+	
+	// if one client is present
+	if (!clients.empty()) {
+		sendInitialNode(clients.begin().value().device);
+	}
+}
+
+void MasterPlanner9::stopClients() {
+	// tell all clients to stop searching
+	for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+		sendStop(it.value().device);
+	}
+	
+	// wait until all clients have acknowledged the stop
+	stoppingCount = clients.size();
 }
 
 void MasterPlanner9::sendScope(ChunkedDevice* device) {

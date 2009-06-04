@@ -3,6 +3,7 @@
 
 #include <QTcpServer>
 #include <QSet>
+#include <QTime>
 #include "serializer.hpp"
 #include "chunked.h"
 #include "../core/problem.hpp"
@@ -25,7 +26,10 @@ protected slots:
 
 protected:
 	virtual void timerEvent(QTimerEvent *event);
+	void runPlanner(const Scope& scope);
 	void killPlanner();
+	void runTimer();
+	void stopTimer();
 		
 private:
 	int timerId;
@@ -33,6 +37,7 @@ private:
 	ChunkedDevice* chunkedDevice;
 	QTcpServer tcpServer;
 	Serializer stream;
+	Planner9::Cost lastSentCost;
 	std::ostream* debugStream;
 };
 
@@ -59,6 +64,9 @@ protected slots:
 	void messageAvailable();
 	
 protected:
+	void startSearchIfReady();
+	void stopClients();
+	
 	void sendScope(ChunkedDevice* client);
 	void sendInitialNode(ChunkedDevice* client);
 	void sendNode(ChunkedDevice* client, const SimplePlanner9::SearchNode& node);
@@ -78,6 +86,9 @@ private:
 	typedef QMap<QTcpSocket*, Client> ClientsMap;
 	ClientsMap clients;
 	Serializer stream;
+	QTime planStartTime;
+	int stoppingCount;
+	bool newSearch;
 	std::ostream* debugStream;
 };
 
