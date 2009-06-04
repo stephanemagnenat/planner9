@@ -83,54 +83,56 @@ void SlavePlanner9::disconnected() {
 
 
 void SlavePlanner9::messageAvailable() {
-	// fetch command from master
-	Command cmd(stream.read<Command>());
-	
-	qDebug() << "Cmd" << cmd;
-	
-	switch (cmd) {
-		// new node to insert
-		case CMD_PUSH_NODE: {
-			SimplePlanner9::SearchNode* node(new SimplePlanner9::SearchNode(stream.read<SimplePlanner9::SearchNode>()));
-			//std::cerr << "received:\n" << (*node) << "\ndone" << std::endl;
-			qDebug() << "inserting node of cost" << node->getTotalCost();
-			assert(planner);
-			planner->pushNode(node);
-			runTimer();
-		} break;
-			
-		// node to send
-		case CMD_GET_NODE: {
-			if (planner && !planner->nodes.empty()) {
-				stream.write(CMD_PUSH_NODE);
-				stream.write(*(planner->nodes.begin()->second));
-				if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
+	while (chunkedDevice->isMessage()) {
+		// fetch command from master
+		Command cmd(stream.read<Command>());
+		
+		qDebug() << "Cmd" << cmd;
+		
+		switch (cmd) {
+			// new node to insert
+			case CMD_PUSH_NODE: {
+				SimplePlanner9::SearchNode* node(new SimplePlanner9::SearchNode(stream.read<SimplePlanner9::SearchNode>()));
+				//std::cerr << "received:\n" << (*node) << "\ndone" << std::endl;
+				qDebug() << "inserting node of cost" << node->getTotalCost();
+				assert(planner);
+				planner->pushNode(node);
+				runTimer();
+			} break;
+				
+			// node to send
+			case CMD_GET_NODE: {
+				if (planner && !planner->nodes.empty()) {
+					stream.write(CMD_PUSH_NODE);
+					stream.write(*(planner->nodes.begin()->second));
+					if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
+					chunkedDevice->flush();
+					qDebug() << "sending node of cost" << planner->nodes.begin()->first;
+					planner->nodes.erase(planner->nodes.begin());
+				}
+			} break;
+				
+			// new problem scope
+			case CMD_PROBLEM_SCOPE: {
+				killPlanner();
+				const Scope scope(stream.read<Scope>());
+				runPlanner(scope);
+			} break;
+				
+			// stop processing
+			case CMD_STOP: {
+				stopTimer();
+				killPlanner();
+				// acknowledge stop
+				stream.write(CMD_STOP);
 				chunkedDevice->flush();
-				qDebug() << "sending node of cost" << planner->nodes.begin()->first;
-				planner->nodes.erase(planner->nodes.begin());
-			}
-		} break;
-			
-		// new problem scope
-		case CMD_PROBLEM_SCOPE: {
-			killPlanner();
-			const Scope scope(stream.read<Scope>());
-			runPlanner(scope);
-		} break;
-			
-		// stop processing
-		case CMD_STOP: {
-			stopTimer();
-			killPlanner();
-			// acknowledge stop
-			stream.write(CMD_STOP);
-			chunkedDevice->flush();
-		} break;
-			
-		default:
-			throw std::runtime_error(tr("Unknown command received: %0").arg(cmd).toStdString());
-			break;
-	}
+			} break;
+				
+			default:
+				throw std::runtime_error(tr("Unknown command received: %0").arg(cmd).toStdString());
+				break;
+		}
+	}	
 }
 
 void SlavePlanner9::timerEvent(QTimerEvent *event) {
@@ -301,9 +303,17 @@ void MasterPlanner9::clientConnectionError(QAbstractSocket::SocketError socketEr
 void MasterPlanner9::messageAvailable() {
 	ChunkedDevice* device(boost::polymorphic_downcast<ChunkedDevice*>(sender()));
 	QTcpSocket* socket = boost::polymorphic_downcast<QTcpSocket*>(device->parentDevice());
-	stream.setDevice(device);
+	Client& client(clients[socket]);
 	
+	while (device->isMessage()) {
+		processMessage(client);
+	}
+}
+
+void MasterPlanner9::processMessage(Client& client) {
 	// fetch command from client
+	//qDebug() << "Cmd pre";
+	stream.setDevice(client.device);
 	Command cmd(stream.read<Command>());
 	qDebug() << "Cmd" << cmd;
 	
@@ -316,7 +326,6 @@ void MasterPlanner9::messageAvailable() {
 			if (stoppingCount > 0)
 				return;
 			
-			Client& client(clients[socket]);
 			client.cost = cost;
 			
 			std::cerr << "Cost map: ";
@@ -338,8 +347,7 @@ void MasterPlanner9::messageAvailable() {
 			std::cerr  << "Min cost " << client.device << std::endl;
 			
 			// we have lowest cost, get our best node
-			stream.write<Command>(CMD_GET_NODE);
-			device->flush();
+			sendGetNode(client.device);
 		} break;
 		
 		// node
@@ -365,7 +373,7 @@ void MasterPlanner9::messageAvailable() {
 				}
 			}
 			
-			std::cerr  << "Load balancing " << device << " to " <<highestCostIt.value().device << " cost " << node.getTotalCost() << std::endl;
+			std::cerr  << "Load balancing " << client.device << " to " <<highestCostIt.value().device << " cost " << node.getTotalCost() << std::endl;
 			
 			// send the node to it and update cost
 			if (debugStream) *debugStream  << "sending:\n" << node << "\ndone" << std::endl;
@@ -394,7 +402,6 @@ void MasterPlanner9::messageAvailable() {
 			if (stoppingCount > 0)
 				return;
 			
-			Client& client(clients[socket]);
 			client.cost = Planner9::InfiniteCost;
 			
 			bool stillSearching(false);
@@ -455,6 +462,12 @@ void MasterPlanner9::stopClients() {
 	stoppingCount = clients.size();
 }
 
+void MasterPlanner9::sendGetNode(ChunkedDevice* device) {
+	stream.setDevice(device);
+	stream.write(CMD_GET_NODE);
+	device->flush();
+}
+
 void MasterPlanner9::sendScope(ChunkedDevice* device) {
 	stream.setDevice(device);
 	stream.write(CMD_PROBLEM_SCOPE);
@@ -463,10 +476,7 @@ void MasterPlanner9::sendScope(ChunkedDevice* device) {
 }
 
 void MasterPlanner9::sendInitialNode(ChunkedDevice* device) {
-	stream.setDevice(device);
-	stream.write(CMD_PUSH_NODE);
-	stream.write(*initialNode);
-	device->flush();
+	sendNode(device, *initialNode);
 }
 
 void MasterPlanner9::sendNode(ChunkedDevice* device, const SimplePlanner9::SearchNode& node) {

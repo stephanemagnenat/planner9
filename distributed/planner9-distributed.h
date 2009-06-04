@@ -44,6 +44,14 @@ private:
 struct MasterPlanner9: QObject {
 	
 	Q_OBJECT
+	
+	struct Client {
+		Client();
+		Client(ChunkedDevice* device);
+		
+		ChunkedDevice* device;
+		Planner9::Cost cost;
+	};
 
 public:
 	MasterPlanner9(const Domain& domain, std::ostream* debugStream = 0);
@@ -64,22 +72,18 @@ protected slots:
 	void messageAvailable();
 	
 protected:
+	void processMessage(Client& client);
 	void startSearchIfReady();
 	void stopClients();
 	
+	void sendGetNode(ChunkedDevice* device);
 	void sendScope(ChunkedDevice* client);
 	void sendInitialNode(ChunkedDevice* client);
 	void sendNode(ChunkedDevice* client, const SimplePlanner9::SearchNode& node);
 	void sendStop(ChunkedDevice* client);
 	
 private:
-	struct Client {
-		Client();
-		Client(ChunkedDevice* device);
-		
-		ChunkedDevice* device;
-		Planner9::Cost cost;
-	};
+	
 
 	Problem problem;
 	Planner9::SearchNode *initialNode;

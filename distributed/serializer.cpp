@@ -265,21 +265,3 @@ Planner9::SearchNode Serializer::read() {
 	const State state(read<State>());
 	return Planner9::SearchNode(plan, network, allocatedVariablesCount, cost, preconditions, state);				
 }
-
-///
-
-/*
-TODO: examples for safe network operations
-bool sendCurrentCost(const Domain& domain, QAbstractSocket* socket, const Planner9::Cost& cost) {
-	QBuffer buffer;
-	Serializer s(&buffer, domain);
-	s.write(CMD_CURRENT_COST);
-	s.write(planner->nodes.begin()->first);
-	
-	QDataStream stream(socket);
-	stream << quint32(buffer.size());
-	stream.writeRawData(buffer.data(), buffer.size());
-	
-	return stream.status() == QDataStream::Ok;
-}
-*/
