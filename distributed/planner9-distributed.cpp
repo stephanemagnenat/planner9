@@ -4,6 +4,11 @@
 #include "../core/tasks.hpp"
 #include <boost/cast.hpp>
 #include <QTcpSocket>
+#include "avahi-server.h"
+#include "avahi-entry-group.h"
+#include "avahi-service-browser.h"
+#include <avahi-client/client.h>
+#include <avahi-client/publish.h>
 #include <stdexcept>
 
 #include "planner9-distributed.moc"
@@ -37,7 +42,9 @@ SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
 	planner(0),
 	device(0),
 	stream(domain),
-	debugStream(debugStream) {
+	debugStream(debugStream),
+	avahiServer(new AvahiServer("org.freedesktop.Avahi", "/", QDBusConnection::systemBus(), this)),
+	avahiEntryGroup(0) {
 
 	tcpServer.setMaxPendingConnections(1);
 
@@ -48,6 +55,12 @@ SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
 	}
 
 	std::cout << "Listening on port " << tcpServer.serverPort() << std::endl;
+
+	registerService();
+}
+
+SlavePlanner9::~SlavePlanner9() {
+	unregisterService();
 }
 
 void SlavePlanner9::newConnection() {
@@ -64,6 +77,8 @@ void SlavePlanner9::newConnection() {
 	connect(device, SIGNAL(readyRead()), SLOT(messageAvailable()));
 
 	if (debugStream) *debugStream << "Connection from " << socket->peerAddress().toString().toStdString() << std::endl;
+
+	unregisterService();
 }
 
 void SlavePlanner9::disconnected() {
@@ -80,6 +95,8 @@ void SlavePlanner9::disconnected() {
 	}
 
 	std::cout << "Listening on port " << tcpServer.serverPort() << std::endl;
+
+	registerService();
 }
 
 
@@ -204,6 +221,24 @@ void SlavePlanner9::stopTimer() {
 	}
 }
 
+void SlavePlanner9::registerService() {
+	Q_ASSERT(avahiEntryGroup == 0);
+
+	QString serviceName(QString("planner9:%0").arg(tcpServer.serverPort()));
+
+	QDBusObjectPath groupPath(avahiServer->EntryGroupNew());
+	avahiEntryGroup = new AvahiEntryGroup("org.freedesktop.Avahi", groupPath.path(), QDBusConnection::systemBus(), this);
+	avahiEntryGroup->AddService(AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, 0, serviceName, "_planner9._tcp", "", "", tcpServer.serverPort(), QList<QByteArray>());
+	avahiEntryGroup->Commit().waitForFinished();
+}
+
+void SlavePlanner9::unregisterService() {
+	assert(avahiEntryGroup != 0);
+	avahiEntryGroup->Free().waitForFinished();
+	avahiEntryGroup->deleteLater();
+	avahiEntryGroup = 0;
+}
+
 /////
 
 MasterPlanner9::Client::Client() :
@@ -221,7 +256,16 @@ MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	stream(domain),
 	debugStream(debugStream),
 	stoppingCount(0),
-	newSearch(false) {
+	newSearch(false),
+	avahiServer(new AvahiServer("org.freedesktop.Avahi", "/", QDBusConnection::systemBus(), this)),
+	avahiServiceBrowser(0) {
+
+	QDBusObjectPath browserPath(avahiServer->ServiceBrowserNew(AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, "_planner9._tcp", "", 0));
+	avahiServiceBrowser = new AvahiServiceBrowser("org.freedesktop.Avahi", browserPath.path(), QDBusConnection::systemBus(), this);
+	connect(avahiServiceBrowser,
+		SIGNAL(ItemNew(int, int, const QString &, const QString &, const QString &, uint)),
+		SLOT(clientDiscovered(int, int, const QString &, const QString &, const QString &, uint))
+	);
 }
 
 MasterPlanner9::~MasterPlanner9() {
@@ -302,6 +346,26 @@ void MasterPlanner9::clientConnectionError(QAbstractSocket::SocketError socketEr
 	clients.remove(client);
 
 	// TODO: manage disconnection, resend node of this one
+}
+
+void MasterPlanner9::clientDiscovered(int interface, int protocol, const QString &name, const QString &type, const QString &domain, uint flags) {
+
+	int outProtocol;
+	QString outName;
+	QString outType;
+	QString outDomain;
+	QString outHost;
+	int outAProtocol;
+	QString outAddress;
+	ushort outPort;
+	QList<QByteArray> outTxt;
+	uint outFlags;
+
+	avahiServer->ResolveService(interface, protocol, name, type, domain, AVAHI_PROTO_UNSPEC, 0, outProtocol, outName, outType, outDomain, outHost, outAProtocol, outAddress, outPort, outTxt, outFlags);
+
+	qDebug() << outHost << outPort;
+
+	connectToSlave(outHost, outPort);
 }
 
 void MasterPlanner9::messageAvailable() {

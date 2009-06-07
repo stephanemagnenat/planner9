@@ -4,6 +4,9 @@ if (QT4_FOUND)
 	include(${QT_USE_FILE})
 	
 	set (PLANNER9DISTRIBUTED_SRC
+		avahi-server.cpp
+		avahi-entry-group.cpp
+		avahi-service-browser.cpp
 		serializer.cpp
 		chunked.cpp
 		planner9-distributed.cpp

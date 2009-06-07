@@ -11,6 +11,9 @@
 struct Domain;
 class SimplePlanner9;
 class ChunkedDevice;
+class AvahiServer;
+class AvahiEntryGroup;
+class AvahiServiceBrowser;
 
 struct SlavePlanner9: QObject {
 
@@ -18,6 +21,7 @@ struct SlavePlanner9: QObject {
 
 public:
 	SlavePlanner9(const Domain& domain, std::ostream* debugStream = 0);
+	~SlavePlanner9();
 
 protected slots:
 	void newConnection();
@@ -32,6 +36,10 @@ protected:
 	void stopTimer();
 
 private:
+	void registerService();
+	void unregisterService();
+
+private:
 	int timerId;
 	SimplePlanner9* planner;
 	ChunkedDevice* device;
@@ -40,6 +48,8 @@ private:
 	QTime lastSentCostTime;
 	Planner9::Cost lastSentCost;
 	std::ostream* debugStream;
+	AvahiServer* avahiServer;
+	AvahiEntryGroup* avahiEntryGroup;
 };
 
 struct MasterPlanner9: QObject {
@@ -70,7 +80,8 @@ protected slots:
 	void clientConnected();
 	void clientDisconnected();
 	void clientConnectionError(QAbstractSocket::SocketError socketError);
-	void messageAvailable();
+	void clientDiscovered(int interface, int protocol, const QString &name, const QString &type, const QString &domain, uint flags);
+    void messageAvailable();
 
 protected:
 	void processMessage(Client& client);
@@ -84,8 +95,6 @@ protected:
 	void sendStop(ChunkedDevice* client);
 
 private:
-
-
 	Problem problem;
 	Planner9::SearchNode *initialNode;
 	typedef QMap<QTcpSocket*, Client> ClientsMap;
@@ -95,6 +104,8 @@ private:
 	int stoppingCount;
 	bool newSearch;
 	std::ostream* debugStream;
+	AvahiServer* avahiServer;
+	AvahiServiceBrowser* avahiServiceBrowser;
 };
 
 
