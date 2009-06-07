@@ -23,7 +23,7 @@ QIODevice* ChunkedDevice::parentDevice() {
 }
 
 bool ChunkedDevice::open(OpenMode mode) {
-	QIODevice::open(mode);
+	QIODevice::open(mode | Unbuffered);
 	return parentDevice()->open(mode);
 }
 

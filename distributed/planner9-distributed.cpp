@@ -137,37 +137,33 @@ void SlavePlanner9::messageAvailable() {
 }
 
 void SlavePlanner9::timerEvent(QTimerEvent *event) {
-	if (planner) {
-		// TODO: improve the performances of this loop by using a thread
-		// and not polling of the event loop
-		// plan for a specified duration
-		QTime sliceStartingTime(QTime::currentTime());
-		while (sliceStartingTime.msecsTo(QTime::currentTime()) < 10) {
-			if (!planner->plan(1))
-				break;
-		}
+	Q_ASSERT(planner);
 
-		planner->plan(1);
+	// TODO: improve the performances of this loop by using a thread
+	// and not polling of the event loop
+	// plan for a specified duration
+	const bool cont = planner->plan(1);
 
-		// if plan found
-		if (planner->plans.empty()) {
-			// report progress to master
-			if (!planner->nodes.empty()) {
-				const Planner9::Cost currentCost(planner->nodes.begin()->first);
-				if (currentCost != lastSentCost) {
-					qDebug() << "new current cost" << currentCost;
-					stream.write(CMD_CURRENT_COST);
-					stream.write(planner->nodes.begin()->first);
-					device->flush();
-					lastSentCost = currentCost;
-				}
-			} else {
-				// no more nodes, report failure
-				qDebug() << "no plan found";
-				stream.write(CMD_NOPLAN_FOUND);
+	if (cont) {
+		// check for periodical update of cost
+		const QTime currentTime(QTime::currentTime());
+		if (lastSentCostTime.msecsTo(currentTime) > 30) {
+			const Planner9::Cost currentCost(planner->nodes.begin()->first);
+			if (currentCost != lastSentCost) {
+				qDebug() << "new current cost" << currentCost;
+				stream.write(CMD_CURRENT_COST);
+				stream.write(planner->nodes.begin()->first);
 				device->flush();
-				stopTimer();
+				lastSentCost = currentCost;
+				lastSentCostTime = currentTime;
 			}
+		}
+	} else {
+		if (planner->plans.empty()) {
+			// no more nodes, report failure
+			qDebug() << "no plan found";
+			stream.write(CMD_NOPLAN_FOUND);
+			device->flush();
 		} else {
 			// report plan
 			qDebug() << "plan found";
@@ -175,14 +171,14 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 				stream.write(CMD_PLAN_FOUND);
 				stream.write(planner->plans.front());
 				device->flush();
-				// TODO: if required, put into idle until new problem
 			}
-			stopTimer();
 		}
+		stopTimer();
 	}
 }
 
 void SlavePlanner9::runPlanner(const Scope& scope) {
+	Q_ASSERT(planner == 0);
 	planner = new SimplePlanner9(scope, debugStream);
 	lastSentCost = Planner9::InfiniteCost;
 }
@@ -195,7 +191,10 @@ void SlavePlanner9::killPlanner() {
 }
 
 void SlavePlanner9::runTimer() {
-	timerId = startTimer(0);
+	if(timerId == -1) {
+		timerId = startTimer(0);
+		lastSentCostTime = QTime::currentTime();
+	}
 }
 
 void SlavePlanner9::stopTimer() {
