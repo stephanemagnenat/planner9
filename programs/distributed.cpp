@@ -12,7 +12,7 @@ int dumpError(char *exeName) {
 }
 
 int runSlave(int argc, char* argv[]) {
-	QApplication app(argc, argv);
+	QCoreApplication app(argc, argv);
 	
 	MyProblem problem;
 	
@@ -23,7 +23,7 @@ int runSlave(int argc, char* argv[]) {
 }
 
 int runMaster(int argc, char* argv[]) {
-	QApplication app(argc, argv);
+	QCoreApplication app(argc, argv);
 	
 	MyProblem problem;
 	
