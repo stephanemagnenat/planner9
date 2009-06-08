@@ -27,7 +27,8 @@ int runMaster(int argc, char* argv[]) {
 	
 	MyProblem problem;
 	
-	MasterPlanner9 masterPlanner(problem, &std::cerr);
+	//MasterPlanner9 masterPlanner(problem, &std::cerr);
+	MasterPlanner9 masterPlanner(problem);
 	
 	masterPlanner.plan(problem);
 	

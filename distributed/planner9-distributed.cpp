@@ -54,7 +54,7 @@ SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
 
-	std::cout << "Listening on port " << tcpServer.serverPort() << std::endl;
+	if (debugStream) *debugStream << "Listening on port " << tcpServer.serverPort() << std::endl;
 
 	registerService();
 }
@@ -94,7 +94,7 @@ void SlavePlanner9::disconnected() {
 		throw std::runtime_error(tcpServer.errorString().toStdString());
 	}
 
-	std::cout << "Listening on port " << tcpServer.serverPort() << std::endl;
+	if (debugStream) *debugStream << "Listening on port " << tcpServer.serverPort() << std::endl;
 
 	registerService();
 }
@@ -140,6 +140,7 @@ void SlavePlanner9::messageAvailable() {
 			// stop processing
 			case CMD_STOP: {
 				stopTimer();
+				qDebug() << "Stopped after" << planner->iterationCount << "iterations";
 				killPlanner();
 				// acknowledge stop
 				stream.write(CMD_STOP);
@@ -293,6 +294,7 @@ void MasterPlanner9::plan(const Problem& problem) {
 		*debugStream << "initial state: "<< problem.state << std::endl;
 		*debugStream << "initial network: " << problem.network << std::endl;
 	}
+	std::cerr << Scope::setScope(problem.scope);
 	this->problem = problem;
 
 	if (initialNode)
@@ -309,12 +311,12 @@ void MasterPlanner9::plan(const Problem& problem) {
 
 void MasterPlanner9::planFound(const Plan& plan) {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
-	if (debugStream) *debugStream << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
+	std::cerr << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
 }
 
 void MasterPlanner9::noPlanFound() {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
-	if (debugStream) *debugStream << "After " << planningDuration << " ms, no plan." << std::endl;
+	std::cerr << "After " << planningDuration << " ms, no plan." << std::endl;
 }
 
 void MasterPlanner9::clientConnected() {
@@ -362,8 +364,6 @@ void MasterPlanner9::clientDiscovered(int interface, int protocol, const QString
 	uint outFlags;
 
 	avahiServer->ResolveService(interface, protocol, name, type, domain, AVAHI_PROTO_UNSPEC, 0, outProtocol, outName, outType, outDomain, outHost, outAProtocol, outAddress, outPort, outTxt, outFlags);
-
-	qDebug() << outHost << outPort;
 
 	connectToSlave(outHost, outPort);
 }
