@@ -4,6 +4,7 @@
 #include <QTcpServer>
 #include <QSet>
 #include <QTime>
+#include <fstream>
 #include "serializer.hpp"
 #include "chunked.h"
 #include "../core/problem.hpp"
@@ -72,6 +73,10 @@ public:
 
 	void plan(const Problem& problem);
 
+public slots:
+	// TODO: redesign this API
+	void replan();
+
 protected:	// TODO: do we inherit or use socket/slot ?
 	virtual void planFound(const Plan& plan);
 	virtual void noPlanFound();
@@ -87,6 +92,7 @@ protected:
 	void processMessage(Client& client);
 	void startSearchIfReady();
 	void stopClients();
+	bool isAnyClientSearching() const;
 
 	void sendGetNode(ChunkedDevice* device);
 	void sendScope(ChunkedDevice* client);
@@ -103,9 +109,11 @@ private:
 	QTime planStartTime;
 	int stoppingCount;
 	bool newSearch;
+	unsigned totalIterationCount;
 	std::ostream* debugStream;
 	AvahiServer* avahiServer;
 	AvahiServiceBrowser* avahiServiceBrowser;
+	std::ofstream statsFile; // TODO cleanup this
 };
 
 

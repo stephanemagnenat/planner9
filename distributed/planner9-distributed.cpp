@@ -121,12 +121,23 @@ void SlavePlanner9::messageAvailable() {
 			// node to send
 			case CMD_GET_NODE: {
 				if (planner && !planner->nodes.empty()) {
-					stream.write(CMD_PUSH_NODE);
-					stream.write(*(planner->nodes.begin()->second));
-					if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
-					device->flush();
-					qDebug() << "sending node of cost" << planner->nodes.begin()->first;
-					planner->nodes.erase(planner->nodes.begin());
+					const Planner9::Cost bestCost(planner->nodes.begin()->first);
+					const size_t bestsCount(planner->nodes.count(bestCost));
+					if (bestsCount > 1) {
+						size_t toSendCount = bestsCount / 3; //TODO: tune
+						if (toSendCount == 0)
+							toSendCount = 1;
+						if (toSendCount > 10) //TODO: tune
+							toSendCount = 10;
+						qDebug() << "sending " << toSendCount << " nodes of cost" << bestCost << "from bests pool of size" << planner->nodes.count(bestCost);
+						for (size_t i = 0; i < toSendCount; ++i) {
+							stream.write(CMD_PUSH_NODE);
+							stream.write(*(planner->nodes.begin()->second));
+							planner->nodes.erase(planner->nodes.begin());
+							//if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
+						}
+						device->flush();
+					}
 				}
 			} break;
 
@@ -141,10 +152,12 @@ void SlavePlanner9::messageAvailable() {
 			case CMD_STOP: {
 				stopTimer();
 				qDebug() << "Stopped after" << planner->iterationCount << "iterations";
-				killPlanner();
 				// acknowledge stop
 				stream.write(CMD_STOP);
+				stream.write<unsigned>(planner->iterationCount);
 				device->flush();
+				// delete planner
+				killPlanner();
 			} break;
 
 			default:
@@ -258,8 +271,10 @@ MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	debugStream(debugStream),
 	stoppingCount(0),
 	newSearch(false),
+	totalIterationCount(0),
 	avahiServer(new AvahiServer("org.freedesktop.Avahi", "/", QDBusConnection::systemBus(), this)),
-	avahiServiceBrowser(0) {
+	avahiServiceBrowser(0),
+	statsFile("stats.txt") {
 
 	QDBusObjectPath browserPath(avahiServer->ServiceBrowserNew(AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, "_planner9._tcp", "", 0));
 	avahiServiceBrowser = new AvahiServiceBrowser("org.freedesktop.Avahi", browserPath.path(), QDBusConnection::systemBus(), this);
@@ -300,23 +315,33 @@ void MasterPlanner9::plan(const Problem& problem) {
 	if (initialNode)
 		delete initialNode;
 	initialNode = new Planner9::SearchNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
+	
+	replan();
+}
+
+void MasterPlanner9::replan() {
 	newSearch = true;
 
-	stopClients();
+	if (isAnyClientSearching())
+		stopClients();
 
 	startSearchIfReady();
 
 	planStartTime = QTime::currentTime();
+	
+	qDebug() << "Starting planning";
 }
 
 void MasterPlanner9::planFound(const Plan& plan) {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
 	std::cerr << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
+	statsFile << planningDuration;
 }
 
 void MasterPlanner9::noPlanFound() {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
 	std::cerr << "After " << planningDuration << " ms, no plan." << std::endl;
+	statsFile << planningDuration;
 }
 
 void MasterPlanner9::clientConnected() {
@@ -341,13 +366,15 @@ void MasterPlanner9::clientDisconnected() {
 	clients.remove(client);
 
 	// TODO: manage disconnection, resend node of this one
+	if (stoppingCount > 0)
+		--stoppingCount;
 }
 
 void MasterPlanner9::clientConnectionError(QAbstractSocket::SocketError socketError) {
 	QTcpSocket* client(boost::polymorphic_downcast<QTcpSocket*>(sender()));
 	clients.remove(client);
 
-	// TODO: manage disconnection, resend node of this one
+	// TODO: report the error
 }
 
 void MasterPlanner9::clientDiscovered(int interface, int protocol, const QString &name, const QString &type, const QString &domain, uint flags) {
@@ -406,16 +433,21 @@ void MasterPlanner9::processMessage(Client& client) {
 			if (clients.size() <= 1)
 				return;
 
-			// read the clients map to see whether another one has lower cost
+			// read the clients map to see whether anyone has lower or higher cost
+			bool hasHigher(false);
 			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-				if (it.value().cost < cost)
-					return; // another has lower cost, do nothing
+				const Planner9::Cost thatCost(it.value().cost);
+				if (thatCost < cost)
+					return; // another has lower cost, we are not optimal, return
+				if (it.value().cost > cost)
+					hasHigher = true; // another has higher cost, request some of our bests
 			}
 
-			std::cerr  << "Min cost " << client.device << std::endl;
-
-			// we have lowest cost, get our best node
-			sendGetNode(client.device);
+			if (hasHigher) {
+				std::cerr  << "Min cost " << client.device << std::endl;
+				// we have lowest cost and someone has higher, get some of our best nodes
+				sendGetNode(client.device);
+			}
 		} break;
 
 		// node
@@ -435,12 +467,13 @@ void MasterPlanner9::processMessage(Client& client) {
 			Planner9::Cost highestCost(0);
 			for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
 				Planner9::Cost cost = it.value().cost;
-				if (cost > highestCost) {
+				if (cost >= highestCost) {
 					highestCost = cost;
 					highestCostIt = it;
 				}
 			}
 
+			// TODO: fixme, load balancing to self is bad
 			std::cerr  << "Load balancing " << client.device << " to " <<highestCostIt.value().device << " cost " << node.getTotalCost() << std::endl;
 
 			// send the node to it and update cost
@@ -456,6 +489,8 @@ void MasterPlanner9::processMessage(Client& client) {
 			// ignore if stopping
 			if (stoppingCount > 0)
 				return;
+			
+			client.cost = Planner9::InfiniteCost;
 
 			stopClients();
 
@@ -472,22 +507,22 @@ void MasterPlanner9::processMessage(Client& client) {
 
 			client.cost = Planner9::InfiniteCost;
 
-			bool stillSearching(false);
-			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-				if (it.value().cost != Planner9::InfiniteCost) {
-					stillSearching = true;
-				}
-			}
-
-			if (stillSearching == false) {
+			if (isAnyClientSearching() == false) {
 				// notify failure
 				noPlanFound();
+				stopClients();
 			}
 		} break;
 
 		// stop acknowledge
 		case CMD_STOP: {
+			client.cost = Planner9::InfiniteCost;
+			totalIterationCount += stream.read<unsigned>();
 			stoppingCount--;
+			if (stoppingCount == 0) {
+				qDebug() << "Total Iterations" << totalIterationCount;
+				statsFile << " " << totalIterationCount << std::endl;
+			}
 			startSearchIfReady();
 		} break;
 
@@ -507,10 +542,9 @@ void MasterPlanner9::startSearchIfReady() {
 		return;
 	newSearch = false;
 
-	// send scope to every client to clear their current computations
+	// send scope to every client for new planning
 	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
 		Client& client = it.value();
-		client.cost = Planner9::InfiniteCost;
 		sendScope(client.device);
 	}
 
@@ -522,12 +556,24 @@ void MasterPlanner9::startSearchIfReady() {
 
 void MasterPlanner9::stopClients() {
 	// tell all clients to stop searching
-	for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-		sendStop(it.value().device);
+	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
+		Client& client = it.value();
+		client.cost = Planner9::InfiniteCost;
+		sendStop(client.device);
 	}
 
 	// wait until all clients have acknowledged the stop
 	stoppingCount = clients.size();
+	totalIterationCount = 0;
+}
+
+bool MasterPlanner9::isAnyClientSearching() const {
+	for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+		if (it.value().cost != Planner9::InfiniteCost) {
+			return true;
+		}
+	}
+	return false;
 }
 
 void MasterPlanner9::sendGetNode(ChunkedDevice* device) {

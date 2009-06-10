@@ -3,6 +3,7 @@
 #include "../problems/robots.hpp"
 //#include "problems/rover.hpp"
 #include <QApplication>
+#include <QTimer>
 
 using namespace std;
 
@@ -35,6 +36,12 @@ int runMaster(int argc, char* argv[]) {
 	for (int i = 2; i < argc; i+=2) {
 		masterPlanner.connectToSlave(argv[i], atoi(argv[i+1]));
 	}
+
+	// QTimer for statisticaly significant benchs
+	QTimer* timer(new QTimer(&masterPlanner));
+	masterPlanner.connect(timer, SIGNAL(timeout()), SLOT(replan()));
+	timer->setInterval(10000);
+	timer->start();
 	
 	return app.exec();
 }
