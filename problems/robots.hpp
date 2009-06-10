@@ -189,10 +189,10 @@ struct MyProblem: MyDomain, Problem {
 		add(isIn("o0", "a0"));
 		add(isIn("o1", "a2"));
 		add(isIn("r0", "a1"));
-		//add(isIn("r1", "a6"));
+		add(isIn("r1", "a6"));
 		add(isIn("nut0", "a1"));
-		//add(isIn("nut1", "a6"));
-		goal(move("o0", "a4")/* >> move("o0", "a5")*/);
+		add(isIn("nut1", "a6"));
+		goal(move("o0", "a4") >> move("o0", "a5"));
 	}
 
 };

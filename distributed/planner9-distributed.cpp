@@ -257,12 +257,14 @@ void SlavePlanner9::unregisterService() {
 
 MasterPlanner9::Client::Client() :
 	device(0),
-	cost(Planner9::InfiniteCost) {
+	cost(Planner9::InfiniteCost),
+	nodeRequested(false) {
 }
 
 MasterPlanner9::Client::Client(ChunkedDevice* device) :
 	device(device),
-	cost(Planner9::InfiniteCost) {
+	cost(Planner9::InfiniteCost),
+	nodeRequested(false) {
 }
 
 MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
@@ -271,7 +273,6 @@ MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	debugStream(debugStream),
 	stoppingCount(0),
 	newSearch(false),
-	nodeRequested(false),
 	totalIterationCount(0),
 	avahiServer(new AvahiServer("org.freedesktop.Avahi", "/", QDBusConnection::systemBus(), this)),
 	avahiServiceBrowser(0),
@@ -369,8 +370,6 @@ void MasterPlanner9::clientDisconnected() {
 	// TODO: manage disconnection, resend node of this one
 	if (stoppingCount > 0)
 		--stoppingCount;
-
-	nodeRequested = false;
 }
 
 void MasterPlanner9::clientConnectionError(QAbstractSocket::SocketError socketError) {
@@ -413,7 +412,7 @@ void MasterPlanner9::processMessage(Client& client) {
 	//qDebug() << "Cmd pre";
 	stream.setDevice(client.device);
 	Command cmd(stream.read<Command>());
-	qDebug() << "\n*" << QTime::currentTime().toString("hh:mm:ss:zzz") << commandsNames[cmd];
+	qDebug() << "\n*" << QTime::currentTime().toString("hh:mm:ss:zzz") << commandsNames[cmd] << (void*)(client.device);
 
 	switch (cmd) {
 		// cost
@@ -426,10 +425,13 @@ void MasterPlanner9::processMessage(Client& client) {
 			
 			client.cost = cost;
 			
+			/*
+			FIXME: disabled for now, as slaves might ignore the request
 			// do not take action if get node is sent
-			if (nodeRequested)
+			if (client.nodeRequested)
 				return;
-
+			*/
+			
 			std::cerr << "Cost map: ";
 			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
 				std::cerr << it.value().device << ": " << it.value().cost << "\t";
@@ -454,7 +456,7 @@ void MasterPlanner9::processMessage(Client& client) {
 				std::cerr  << "Min cost " << client.device << std::endl;
 				// we have lowest cost and someone has higher, get some of our best nodes
 				sendGetNode(client.device);
-				nodeRequested = true;
+				client.nodeRequested = true;
 			}
 		} break;
 
@@ -463,7 +465,7 @@ void MasterPlanner9::processMessage(Client& client) {
 			SimplePlanner9::SearchNode node(stream.read<SimplePlanner9::SearchNode>());
 
 			// clear get node lock
-			nodeRequested = false;
+			client.nodeRequested = false;
 			
 			// ignore if stopping
 			if (stoppingCount > 0)
@@ -570,13 +572,13 @@ void MasterPlanner9::stopClients() {
 	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
 		Client& client = it.value();
 		client.cost = Planner9::InfiniteCost;
+		client.nodeRequested = false;
 		sendStop(client.device);
 	}
 
 	// wait until all clients have acknowledged the stop
 	stoppingCount = clients.size();
 	totalIterationCount = 0;
-	nodeRequested = false;
 }
 
 bool MasterPlanner9::isAnyClientSearching() const {

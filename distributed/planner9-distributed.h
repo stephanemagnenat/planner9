@@ -63,6 +63,7 @@ struct MasterPlanner9: QObject {
 
 		ChunkedDevice* device;
 		Planner9::Cost cost;
+		bool nodeRequested;
 	};
 
 public:
@@ -109,7 +110,6 @@ private:
 	QTime planStartTime;
 	int stoppingCount;
 	bool newSearch;
-	bool nodeRequested;
 	unsigned totalIterationCount;
 	std::ostream* debugStream;
 	AvahiServer* avahiServer;
