@@ -15,6 +15,8 @@ enum Command {
 	CMD_STOP
 };
 
+extern const char* commandsNames[];
+
 struct Domain;
 
 struct Serializer: public QDataStream {

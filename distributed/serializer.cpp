@@ -1,6 +1,16 @@
 #include "serializer.hpp"
 #include "../core/relations.hpp"
 
+const char* commandsNames[] = {
+	"CMD_PROBLEM_SCOPE",
+	"CMD_PUSH_NODE",
+	"CMD_GET_NODE",
+	"CMD_PLAN_FOUND",
+	"CMD_NOPLAN_FOUND",
+	"CMD_CURRENT_COST",
+	"CMD_STOP"
+};
+
 Serializer::Serializer(const Domain& domain) :
 	domain(domain) {
 }

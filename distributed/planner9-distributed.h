@@ -109,6 +109,7 @@ private:
 	QTime planStartTime;
 	int stoppingCount;
 	bool newSearch;
+	bool nodeRequested;
 	unsigned totalIterationCount;
 	std::ostream* debugStream;
 	AvahiServer* avahiServer;
