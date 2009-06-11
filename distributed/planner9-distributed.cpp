@@ -507,10 +507,7 @@ void MasterPlanner9::processMessage(Client& client) {
 			// clear get node lock
 			client.nodeRequested = false;
 			
-			// to find to who we should send nodes
 			ClientsMap::iterator highestCostIt(clients.end());
-			Planner9::Cost highestMinCost(0);
-			Planner9::Cost highestMaxCost(0);
 			ChunkedDevice* destDevice(0);
 			
 			// read nodes
@@ -526,8 +523,11 @@ void MasterPlanner9::processMessage(Client& client) {
 				if (clients.size() <= 1)
 					continue;
 
-				// find the client with the highest score
+				// find the client with the worst cost that will receive our nodes
 				if (highestCostIt == clients.end()) {
+					Planner9::Cost highestMinCost(0);
+					Planner9::Cost highestMaxCost(0);
+			
 					for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
 						const Planner9::Cost minCost(it.value().bestsMinCost);
 						const Planner9::Cost maxCost(it.value().bestsMaxCost);
@@ -557,7 +557,8 @@ void MasterPlanner9::processMessage(Client& client) {
 				highestCostIt.value().bestsMinCost = std::min(node.getTotalCost(), highestCostIt.value().bestsMinCost);
 			}
 			
-			destDevice->flush();
+			if (destDevice)
+				destDevice->flush();
 		} break;
 
 		// plan

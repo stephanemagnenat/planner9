@@ -14,7 +14,7 @@ struct Problem {
 
 	Scope scope;
 	State state;
-	TaskNetwork network; // TODO: free network's tasks upon delete
+	TaskNetwork network;
 
 };
 
