@@ -17,6 +17,15 @@ const Head* Domain::getHead(size_t index) const {
 		return 0;
 }
 
+const Head* Domain::getHead(const std::string& name) const {
+	HeadsNamesMap::const_iterator it = headsNamesMap.find(name);
+	if (it != headsNamesMap.end())
+		return it->second;
+	else
+		return 0;
+}
+
+
 size_t Domain::getHeadIndex(const Head* head) const {
 	HeadsReverseMap::const_iterator it = headsReverseMap.find(head);
 	if (it != headsReverseMap.end())
@@ -32,6 +41,14 @@ const Relation* Domain::getRelation(size_t index) const {
 		return 0;
 }
 
+const Relation* Domain::getRelation(const std::string& name) const {
+	RelationsNamesMap::const_iterator it = relationsNamesMap.find(name);
+	if (it != relationsNamesMap.end())
+		return it->second;
+	else
+		return 0;
+}
+
 size_t Domain::getRelationIndex(const Relation* rel) const {
 	RelationsReverseMap::const_iterator it = relationsReverseMap.find(rel);
 	if (it != relationsReverseMap.end())
@@ -42,11 +59,13 @@ size_t Domain::getRelationIndex(const Relation* rel) const {
 
 void Domain::registerHead(const Head& head) {
 	headsReverseMap[&head] = headsVector.size();
+	headsNamesMap[head.name] = &head;
 	headsVector.push_back(&head);
 }
 
 void Domain::registerRelation(const Relation& rel) {
 	relationsReverseMap[&rel] = relationsVector.size();
+	relationsNamesMap[rel.name] = &rel;
 	relationsVector.push_back(&rel);
 }
 	

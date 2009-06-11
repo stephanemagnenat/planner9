@@ -16,8 +16,11 @@ struct Domain {
 	
 public:
 	const Head* getHead(size_t index) const;
+	const Head* getHead(const std::string& name) const;
 	size_t getHeadIndex(const Head* head) const;
+	
 	const Relation* getRelation(size_t index) const;
+	const Relation* getRelation(const std::string& name) const;
 	size_t getRelationIndex(const Relation* rel) const;
 
 private:
@@ -28,13 +31,17 @@ private:
 	
 private:
 	typedef std::vector<const Head*> HeadsVector;
+	typedef std::map<std::string, const Head*> HeadsNamesMap;
 	typedef std::map<const Head*, size_t> HeadsReverseMap;
 	HeadsVector headsVector;
 	HeadsReverseMap headsReverseMap;
+	HeadsNamesMap headsNamesMap;
 	
 	typedef std::vector<const Relation*> RelationsVector;
+	typedef std::map<std::string, const Relation*> RelationsNamesMap;
 	typedef std::map<const Relation*, size_t> RelationsReverseMap;
 	RelationsVector relationsVector;
+	RelationsNamesMap relationsNamesMap;
 	RelationsReverseMap relationsReverseMap;
 };
 

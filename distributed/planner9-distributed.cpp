@@ -313,8 +313,7 @@ MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	totalIterationCount(0),
 	debugStream(debugStream),
 	avahiServer(new AvahiServer("org.freedesktop.Avahi", "/", QDBusConnection::systemBus(), this)),
-	avahiServiceBrowser(0),
-	statsFile("stats.txt") {
+	avahiServiceBrowser(0) {
 
 	QDBusObjectPath browserPath(avahiServer->ServiceBrowserNew(AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, "_planner9._tcp", "", 0));
 	avahiServiceBrowser = new AvahiServiceBrowser("org.freedesktop.Avahi", browserPath.path(), QDBusConnection::systemBus(), this);
@@ -361,29 +360,16 @@ void MasterPlanner9::plan(const Problem& problem) {
 }
 
 void MasterPlanner9::replan() {
+	assert(initialNode);
+	
 	newSearch = true;
 
 	if (isAnyClientSearching())
 		stopClients();
 
 	startSearchIfReady();
-
-	planStartTime = QTime::currentTime();
-	
-	qDebug() << "Starting planning";
 }
 
-void MasterPlanner9::planFound(const Plan& plan) {
-	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
-	std::cerr << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
-	statsFile << planningDuration;
-}
-
-void MasterPlanner9::noPlanFound() {
-	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
-	std::cerr << "After " << planningDuration << " ms, no plan." << std::endl;
-	statsFile << planningDuration;
-}
 
 void MasterPlanner9::clientConnected() {
 	QTcpSocket* socket(boost::polymorphic_downcast<QTcpSocket*>(sender()));
@@ -394,11 +380,13 @@ void MasterPlanner9::clientConnected() {
 
 	if (debugStream) *debugStream << "New client" << device;
 
-	sendScope(device);
-
-	if (clients.size() == 1) {
-		if (debugStream) *debugStream << "Sending:\n" << *initialNode << "\ndone" << std::endl;
-		sendInitialNode(device);
+	if (initialNode) {
+		sendScope(device);
+	
+		if (clients.size() == 1) {
+			if (debugStream) *debugStream << "Sending:\n" << *initialNode << "\ndone" << std::endl;
+			sendInitialNode(device);
+		}
 	}
 }
 
@@ -572,7 +560,7 @@ void MasterPlanner9::processMessage(Client& client) {
 			stopClients();
 
 			// print the plan
-			planFound(plan);
+			emit planningSucceded(plan);
 		} break;
 
 		// no plan for this client
@@ -587,7 +575,7 @@ void MasterPlanner9::processMessage(Client& client) {
 
 			if (isAnyClientSearching() == false) {
 				// notify failure
-				noPlanFound();
+				emit planningFailed();
 				stopClients();
 			}
 		} break;
@@ -600,8 +588,7 @@ void MasterPlanner9::processMessage(Client& client) {
 			totalIterationCount += stream.read<quint32>();
 			stoppingCount--;
 			if (stoppingCount == 0) {
-				qDebug() << "Total Iterations" << totalIterationCount;
-				statsFile << " " << totalIterationCount << std::endl;
+				emit planningFinished(totalIterationCount);
 			}
 			startSearchIfReady();
 		} break;
@@ -621,6 +608,8 @@ void MasterPlanner9::startSearchIfReady() {
 	if (!newSearch)
 		return;
 	newSearch = false;
+	
+	emit planningStarted();
 
 	// send scope to every client for new planning
 	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {

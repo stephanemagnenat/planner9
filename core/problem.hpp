@@ -7,6 +7,8 @@
 #include <set>
 
 struct Problem {
+	Problem();
+	Problem(const Scope& constants);
 
 	void add(const ScopedProposition& atom);
 

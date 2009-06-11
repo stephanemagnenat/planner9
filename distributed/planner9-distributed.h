@@ -75,17 +75,21 @@ public:
 	MasterPlanner9(const Domain& domain, std::ostream* debugStream = 0);
 	~MasterPlanner9();
 
+	const Domain& getDomain() { return stream.domain; }
+	
 	bool connectToSlave(const QString& hostName, quint16 port);
 
 	void plan(const Problem& problem);
 
 public slots:
-	// TODO: redesign this API
+	// TODO: debug/bench only
 	void replan();
 
-protected:	// TODO: do we inherit or use socket/slot ?
-	virtual void planFound(const Plan& plan);
-	virtual void noPlanFound();
+signals:
+	void planningStarted();
+	void planningSucceded(const Plan& plan);
+	void planningFailed();
+	void planningFinished(const unsigned& totalIterationsCount);
 
 protected slots:
 	void clientConnected();
@@ -112,14 +116,12 @@ private:
 	typedef QMap<QTcpSocket*, Client> ClientsMap;
 	ClientsMap clients;
 	Serializer stream;
-	QTime planStartTime;
 	int stoppingCount;
 	bool newSearch;
 	unsigned totalIterationCount;
 	std::ostream* debugStream;
 	AvahiServer* avahiServer;
 	AvahiServiceBrowser* avahiServiceBrowser;
-	std::ofstream statsFile; // TODO cleanup this
 };
 
 

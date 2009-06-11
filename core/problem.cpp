@@ -1,6 +1,13 @@
 #include "problem.hpp"
 #include "tasks.hpp"
 
+Problem::Problem() {
+
+}
+
+Problem::Problem(const Scope& constants) :
+	scope(constants) {
+}
 
 void Problem::add(const ScopedProposition& scopedAtom) {
 	const Atom* originalAtom = dynamic_cast<const Atom*>(scopedAtom.proposition);

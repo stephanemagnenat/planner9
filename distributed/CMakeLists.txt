@@ -10,6 +10,7 @@ if (QT4_FOUND)
 		serializer.cpp
 		chunked.cpp
 		planner9-distributed.cpp
+		planner9-dbus.cpp
 	)
 	
 	qt4_automoc(${PLANNER9DISTRIBUTED_SRC})

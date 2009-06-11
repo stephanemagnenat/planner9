@@ -1,11 +1,45 @@
 #include "../core/planner9.hpp"
 #include "../distributed/planner9-distributed.h"
+#include "../distributed/planner9-dbus.h"
 #include "../problems/robots.hpp"
 //#include "problems/rover.hpp"
 #include <QApplication>
 #include <QTimer>
+#include <QDBusMetaType>
 
 using namespace std;
+/*
+void MasterPlanner9::planFound(const Plan& plan) {
+	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
+	std::cerr << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
+	statsFile << planningDuration;
+}
+
+void MasterPlanner9::noPlanFound() {
+	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
+	std::cerr << "After " << planningDuration << " ms, no plan." << std::endl;
+	statsFile << planningDuration;
+}
+
+
+	qDebug() << "Total Iterations" << totalIterationCount;
+	statsFile << " " << totalIterationCount << std::endl;
+	
+	
+
+	planStartTime = QTime::currentTime();
+	
+	qDebug() << "Starting planning";
+	
+	
+	
+	QTime planStartTime;
+	
+	
+	std::ofstream statsFile; // TODO cleanup this
+	
+	statsFile("stats.txt")
+	*/
 
 int dumpError(char *exeName) {
 	std::cerr << "Error, usage " << exeName << " slave/master SLAVE0HOST SLAVE0PORT ... SLAVE1HOST SLAVE1PORT" << std::endl;
@@ -26,18 +60,22 @@ int runSlave(int argc, char* argv[]) {
 int runMaster(int argc, char* argv[]) {
 	QCoreApplication app(argc, argv);
 	
-	MyProblem problem;
+	MyDomain domain;
 	
 	//MasterPlanner9 masterPlanner(problem, &std::cerr);
-	MasterPlanner9 masterPlanner(problem);
+	MasterPlanner9 masterPlanner(domain);
 	
-	masterPlanner.plan(problem);
+	MasterAdaptor::registerDBusTypes();
+	
+	new MasterAdaptor(&masterPlanner);
+	
+	//masterPlanner.plan(problem);
 	
 	for (int i = 2; i < argc; i+=2) {
 		masterPlanner.connectToSlave(argv[i], atoi(argv[i+1]));
 	}
 
-	// QTimer for statisticaly significant benchs
+	/*// QTimer for statisticaly significant benchs
 	QTimer* replanTimer(new QTimer(&masterPlanner));
 	masterPlanner.connect(replanTimer, SIGNAL(timeout()), SLOT(replan()));
 	replanTimer->setInterval(40000);
@@ -50,7 +88,7 @@ int runMaster(int argc, char* argv[]) {
 	// run timers
 	totalTimer->start();
 	replanTimer->start();
-	
+	*/
 	return app.exec();
 }
 
