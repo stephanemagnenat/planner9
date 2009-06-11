@@ -36,6 +36,9 @@ template<> State Serializer::read();
 template<> TaskNetwork Serializer::read();
 template<> Planner9::SearchNode Serializer::read();
 
+//TODO: tune
+const size_t toBalanceCount = 10;
+const size_t toBalanceRatio = 3;
 
 SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
 	timerId(-1),
@@ -99,7 +102,6 @@ void SlavePlanner9::disconnected() {
 	registerService();
 }
 
-
 void SlavePlanner9::messageAvailable() {
 	while (device->isMessage()) {
 		// fetch command from master
@@ -110,34 +112,30 @@ void SlavePlanner9::messageAvailable() {
 		switch (cmd) {
 			// new node to insert
 			case CMD_PUSH_NODE: {
-				SimplePlanner9::SearchNode* node(new SimplePlanner9::SearchNode(stream.read<SimplePlanner9::SearchNode>()));
-				//std::cerr << "received:\n" << (*node) << "\ndone" << std::endl;
-				qDebug() << "inserting node of cost" << node->getTotalCost();
 				assert(planner);
-				planner->pushNode(node);
+				const size_t toReceiveCount(stream.read<quint32>());
+				qDebug() << "inserting" << toReceiveCount << "nodes";
+				for (size_t i = 0; i < toReceiveCount; ++i) {
+					SimplePlanner9::SearchNode* node(new SimplePlanner9::SearchNode(stream.read<SimplePlanner9::SearchNode>()));
+					planner->pushNode(node);
+				}
 				runTimer();
 			} break;
 
 			// node to send
 			case CMD_GET_NODE: {
-				if (planner && !planner->nodes.empty()) {
-					const Planner9::Cost bestCost(planner->nodes.begin()->first);
-					const size_t bestsCount(planner->nodes.count(bestCost));
-					if (bestsCount > 1) {
-						size_t toSendCount = bestsCount / 3; //TODO: tune
-						if (toSendCount == 0)
-							toSendCount = 1;
-						if (toSendCount > 10) //TODO: tune
-							toSendCount = 10;
-						qDebug() << "sending " << toSendCount << " nodes of cost" << bestCost << "from bests pool of size" << planner->nodes.count(bestCost);
-						for (size_t i = 0; i < toSendCount; ++i) {
-							stream.write(CMD_PUSH_NODE);
-							stream.write(*(planner->nodes.begin()->second));
-							planner->nodes.erase(planner->nodes.begin());
-							//if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
-						}
-						device->flush();
+				if (planner) {
+					stream.write(CMD_PUSH_NODE);
+					const size_t toSendCount(getBestsCount());
+					qDebug() << "Sending" << toSendCount << "nodes on" << planner->nodes.size();
+					stream.write<quint32>(toSendCount);
+					for (size_t i = 0; i < toSendCount; ++i) {
+						stream.write(*(planner->nodes.begin()->second));
+						qDebug() << "cost" << (planner->nodes.begin()->second)->getTotalCost();
+						planner->nodes.erase(planner->nodes.begin());
+						//if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
 					}
+					device->flush();
 				}
 			} break;
 
@@ -154,7 +152,7 @@ void SlavePlanner9::messageAvailable() {
 				qDebug() << "Stopped after" << planner->iterationCount << "iterations";
 				// acknowledge stop
 				stream.write(CMD_STOP);
-				stream.write<unsigned>(planner->iterationCount);
+				stream.write<quint32>(planner->iterationCount);
 				device->flush();
 				// delete planner
 				killPlanner();
@@ -165,6 +163,39 @@ void SlavePlanner9::messageAvailable() {
 				break;
 		}
 	}
+}
+
+size_t SlavePlanner9::getBestsCount() const {
+	if ((planner == 0) || planner->nodes.empty())
+		return 0;
+	
+	size_t toSendCount = planner->nodes.size() / toBalanceRatio;
+	toSendCount = std::min(toSendCount, toBalanceCount);
+	
+	return toSendCount;
+}
+
+Planner9::Cost SlavePlanner9::getBestsMinCost() const {
+	if ((planner == 0) || planner->nodes.empty())
+		return Planner9::InfiniteCost;
+	
+	return planner->nodes.begin()->first;
+}
+
+Planner9::Cost SlavePlanner9::getBestsMaxCost() const {
+	if ((planner == 0) || planner->nodes.empty())
+		return Planner9::InfiniteCost;
+	
+	const size_t toSendCount(getBestsCount());
+	
+	if (toSendCount == 0)
+		return Planner9::InfiniteCost;
+	
+	SimplePlanner9::SearchNodes::const_iterator nodeIt(planner->nodes.begin());
+	for (size_t i = 1; i < toSendCount; ++i)
+		++nodeIt;
+	
+	return nodeIt->first;
 }
 
 void SlavePlanner9::timerEvent(QTimerEvent *event) {
@@ -179,13 +210,17 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 		// check for periodical update of cost
 		const QTime currentTime(QTime::currentTime());
 		if (lastSentCostTime.msecsTo(currentTime) > 30) {
-			const Planner9::Cost currentCost(planner->nodes.begin()->first);
-			if (currentCost != lastSentCost) {
-				qDebug() << "\n* new current cost" << currentCost;
+			const Planner9::Cost currentMinCost(getBestsMinCost());
+			const Planner9::Cost currentMaxCost(getBestsMaxCost());
+			if (currentMinCost != lastSentMinCost || currentMaxCost != lastSentMaxCost) {
+				qDebug() << "\n* new current costs" << currentMinCost << currentMaxCost;
 				stream.write(CMD_CURRENT_COST);
-				stream.write(planner->nodes.begin()->first);
+				stream.write(currentMinCost);
+				stream.write(currentMaxCost);
 				device->flush();
-				lastSentCost = currentCost;
+				
+				lastSentMinCost = currentMinCost;
+				lastSentMaxCost = currentMaxCost;
 				lastSentCostTime = currentTime;
 			}
 		}
@@ -211,7 +246,9 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 void SlavePlanner9::runPlanner(const Scope& scope) {
 	Q_ASSERT(planner == 0);
 	planner = new SimplePlanner9(scope, debugStream);
-	lastSentCost = Planner9::InfiniteCost;
+	lastSentMinCost = Planner9::InfiniteCost;
+	lastSentMaxCost = Planner9::InfiniteCost;
+	lastSentCostTime = QTime::currentTime();
 }
 
 void SlavePlanner9::killPlanner() {
@@ -224,7 +261,6 @@ void SlavePlanner9::killPlanner() {
 void SlavePlanner9::runTimer() {
 	if(timerId == -1) {
 		timerId = startTimer(0);
-		lastSentCostTime = QTime::currentTime();
 	}
 }
 
@@ -257,23 +293,25 @@ void SlavePlanner9::unregisterService() {
 
 MasterPlanner9::Client::Client() :
 	device(0),
-	cost(Planner9::InfiniteCost),
+	bestsMinCost(Planner9::InfiniteCost),
+	bestsMaxCost(Planner9::InfiniteCost),
 	nodeRequested(false) {
 }
 
 MasterPlanner9::Client::Client(ChunkedDevice* device) :
 	device(device),
-	cost(Planner9::InfiniteCost),
+	bestsMinCost(Planner9::InfiniteCost),
+	bestsMaxCost(Planner9::InfiniteCost),
 	nodeRequested(false) {
 }
 
 MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
 	initialNode(0),
 	stream(domain),
-	debugStream(debugStream),
 	stoppingCount(0),
 	newSearch(false),
 	totalIterationCount(0),
+	debugStream(debugStream),
 	avahiServer(new AvahiServer("org.freedesktop.Avahi", "/", QDBusConnection::systemBus(), this)),
 	avahiServiceBrowser(0),
 	statsFile("stats.txt") {
@@ -303,6 +341,7 @@ bool MasterPlanner9::connectToSlave(const QString& hostName, quint16 port) {
 	connect(client, SIGNAL(disconnected()), client, SLOT(deleteLater()));
 	connect(client, SIGNAL(error(QAbstractSocket::SocketError)), SLOT(clientConnectionError(QAbstractSocket::SocketError)));
 	connect(client, SIGNAL(error(QAbstractSocket::SocketError)), client, SLOT(deleteLater()));
+	return true;
 }
 
 void MasterPlanner9::plan(const Problem& problem) {
@@ -417,24 +456,23 @@ void MasterPlanner9::processMessage(Client& client) {
 	switch (cmd) {
 		// cost
 		case CMD_CURRENT_COST: {
-			Planner9::Cost cost(stream.read<Planner9::Cost>());
+			const Planner9::Cost bestsMinCost(stream.read<Planner9::Cost>());
+			const Planner9::Cost bestsMaxCost(stream.read<Planner9::Cost>());
 
 			// ignore if stopping
 			if (stoppingCount > 0)
 				return;
 			
-			client.cost = cost;
+			client.bestsMinCost = bestsMinCost;
+			client.bestsMaxCost = bestsMaxCost;
 			
-			/*
-			FIXME: disabled for now, as slaves might ignore the request
 			// do not take action if get node is sent
 			if (client.nodeRequested)
 				return;
-			*/
 			
 			std::cerr << "Cost map: ";
 			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-				std::cerr << it.value().device << ": " << it.value().cost << "\t";
+				std::cerr << it.value().device << ": " << it.value().bestsMinCost << " " << it.value().bestsMaxCost << "\t";
 			}
 			std::cerr << std::endl;
 
@@ -445,15 +483,16 @@ void MasterPlanner9::processMessage(Client& client) {
 			// read the clients map to see whether anyone has lower or higher cost
 			bool hasHigher(false);
 			for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-				const Planner9::Cost thatCost(it.value().cost);
-				if (thatCost < cost)
+				const Planner9::Cost thatBestsMinCost(it.value().bestsMinCost);
+				//const Planner9::Cost thatBestsMaxCost(it.value().bestsMaxCost);
+				if (thatBestsMinCost < bestsMinCost)
 					return; // another has lower cost, we are not optimal, return
-				if (it.value().cost > cost)
+				if (it.value().bestsMinCost > bestsMaxCost)
 					hasHigher = true; // another has higher cost, request some of our bests
 			}
 
 			if (hasHigher) {
-				std::cerr  << "Min cost " << client.device << std::endl;
+				std::cerr  << "Requesting nodes from " << client.device << std::endl;
 				// we have lowest cost and someone has higher, get some of our best nodes
 				sendGetNode(client.device);
 				client.nodeRequested = true;
@@ -462,37 +501,63 @@ void MasterPlanner9::processMessage(Client& client) {
 
 		// node
 		case CMD_PUSH_NODE: {
-			SimplePlanner9::SearchNode node(stream.read<SimplePlanner9::SearchNode>());
-
+			const size_t nodesCount(stream.read<quint32>());
+			std::cerr  << "Receiving " << nodesCount << " nodes" << std::endl;
+			
 			// clear get node lock
 			client.nodeRequested = false;
 			
-			// ignore if stopping
-			if (stoppingCount > 0)
-				return;
+			// to find to who we should send nodes
+			ClientsMap::iterator highestCostIt(clients.end());
+			Planner9::Cost highestMinCost(0);
+			Planner9::Cost highestMaxCost(0);
+			ChunkedDevice* destDevice(0);
+			
+			// read nodes
+			for (size_t i = 0; i < nodesCount; ++i) {
+				stream.setDevice(client.device);
+				SimplePlanner9::SearchNode node(stream.read<SimplePlanner9::SearchNode>());
 
-			// only one client, return
-			if (clients.size() <= 1)
-				return;
+				// ignore if stopping
+				if (stoppingCount > 0)
+					continue;
+	
+				// ignore only one client
+				if (clients.size() <= 1)
+					continue;
 
-			// find the client with the highest score
-			ClientsMap::iterator highestCostIt;
-			Planner9::Cost highestCost(0);
-			for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
-				Planner9::Cost cost = it.value().cost;
-				if (cost >= highestCost) {
-					highestCost = cost;
-					highestCostIt = it;
+				// find the client with the highest score
+				if (highestCostIt == clients.end()) {
+					for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
+						const Planner9::Cost minCost(it.value().bestsMinCost);
+						const Planner9::Cost maxCost(it.value().bestsMaxCost);
+						if (minCost > highestMinCost) {
+							highestMinCost = minCost;
+							highestMaxCost = maxCost;
+							highestCostIt = it;
+						}
+						else if (minCost == highestMinCost && maxCost > highestMaxCost) {
+							highestMaxCost = maxCost;
+							highestCostIt = it;
+						}
+					}
+					destDevice = highestCostIt.value().device;
+					std::cerr  << "Load balancing " << client.device << " to " << destDevice <<  std::endl;
+					
+					stream.setDevice(destDevice);
+					stream.write(CMD_PUSH_NODE);
+					stream.write<quint32>(nodesCount);
 				}
+				
+				// send the node to it and update cost
+				if (debugStream) *debugStream  << "sending:\n" << node << "\ndone" << std::endl;
+				
+				stream.setDevice(destDevice);
+				stream.write(node);
+				highestCostIt.value().bestsMinCost = std::min(node.getTotalCost(), highestCostIt.value().bestsMinCost);
 			}
-
-			// TODO: fixme, load balancing to self is bad
-			std::cerr  << "Load balancing " << client.device << " to " <<highestCostIt.value().device << " cost " << node.getTotalCost() << std::endl;
-
-			// send the node to it and update cost
-			if (debugStream) *debugStream  << "sending:\n" << node << "\ndone" << std::endl;
-			sendNode(highestCostIt.value().device, node);
-			highestCostIt.value().cost = std::min(node.getTotalCost(), highestCostIt.value().cost);
+			
+			destDevice->flush();
 		} break;
 
 		// plan
@@ -503,8 +568,6 @@ void MasterPlanner9::processMessage(Client& client) {
 			if (stoppingCount > 0)
 				return;
 			
-			client.cost = Planner9::InfiniteCost;
-
 			stopClients();
 
 			// print the plan
@@ -518,7 +581,8 @@ void MasterPlanner9::processMessage(Client& client) {
 			if (stoppingCount > 0)
 				return;
 
-			client.cost = Planner9::InfiniteCost;
+			client.bestsMinCost = Planner9::InfiniteCost;
+			client.bestsMaxCost = Planner9::InfiniteCost;
 
 			if (isAnyClientSearching() == false) {
 				// notify failure
@@ -529,8 +593,10 @@ void MasterPlanner9::processMessage(Client& client) {
 
 		// stop acknowledge
 		case CMD_STOP: {
-			client.cost = Planner9::InfiniteCost;
-			totalIterationCount += stream.read<unsigned>();
+			client.bestsMinCost = Planner9::InfiniteCost;
+			client.bestsMaxCost = Planner9::InfiniteCost;
+			
+			totalIterationCount += stream.read<quint32>();
 			stoppingCount--;
 			if (stoppingCount == 0) {
 				qDebug() << "Total Iterations" << totalIterationCount;
@@ -571,7 +637,8 @@ void MasterPlanner9::stopClients() {
 	// tell all clients to stop searching
 	for (ClientsMap::iterator it = clients.begin(); it != clients.end(); ++it) {
 		Client& client = it.value();
-		client.cost = Planner9::InfiniteCost;
+		client.bestsMinCost = Planner9::InfiniteCost;
+		client.bestsMaxCost = Planner9::InfiniteCost;
 		client.nodeRequested = false;
 		sendStop(client.device);
 	}
@@ -583,7 +650,7 @@ void MasterPlanner9::stopClients() {
 
 bool MasterPlanner9::isAnyClientSearching() const {
 	for (ClientsMap::const_iterator it = clients.begin(); it != clients.end(); ++it) {
-		if (it.value().cost != Planner9::InfiniteCost) {
+		if (it.value().bestsMinCost != Planner9::InfiniteCost) {
 			return true;
 		}
 	}
@@ -610,6 +677,7 @@ void MasterPlanner9::sendInitialNode(ChunkedDevice* device) {
 void MasterPlanner9::sendNode(ChunkedDevice* device, const SimplePlanner9::SearchNode& node) {
 	stream.setDevice(device);
 	stream.write(CMD_PUSH_NODE);
+	stream.write<quint32>(1);
 	stream.write(node);
 	device->flush();
 }

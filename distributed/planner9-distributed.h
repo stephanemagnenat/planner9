@@ -30,6 +30,9 @@ protected slots:
 	void messageAvailable();
 
 protected:
+	size_t getBestsCount() const;
+	Planner9::Cost getBestsMinCost() const;
+	Planner9::Cost getBestsMaxCost() const;
 	virtual void timerEvent(QTimerEvent *event);
 	void runPlanner(const Scope& scope);
 	void killPlanner();
@@ -47,7 +50,8 @@ private:
 	QTcpServer tcpServer;
 	Serializer stream;
 	QTime lastSentCostTime;
-	Planner9::Cost lastSentCost;
+	Planner9::Cost lastSentMinCost;
+	Planner9::Cost lastSentMaxCost;
 	std::ostream* debugStream;
 	AvahiServer* avahiServer;
 	AvahiEntryGroup* avahiEntryGroup;
@@ -62,7 +66,8 @@ struct MasterPlanner9: QObject {
 		Client(ChunkedDevice* device);
 
 		ChunkedDevice* device;
-		Planner9::Cost cost;
+		Planner9::Cost bestsMinCost;
+		Planner9::Cost bestsMaxCost;
 		bool nodeRequested;
 	};
 

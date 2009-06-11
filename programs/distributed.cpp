@@ -40,16 +40,16 @@ int runMaster(int argc, char* argv[]) {
 	// QTimer for statisticaly significant benchs
 	QTimer* replanTimer(new QTimer(&masterPlanner));
 	masterPlanner.connect(replanTimer, SIGNAL(timeout()), SLOT(replan()));
-	replanTimer->setInterval(30000);
+	replanTimer->setInterval(60000);
 	
 	// QTimer  for total duration
 	QTimer* totalTimer(new QTimer(&masterPlanner));
 	app.connect(totalTimer, SIGNAL(timeout()), SLOT(quit()));
-	totalTimer->setInterval(30000 * 20 + 5000);
+	totalTimer->setInterval(60000 * 500 + 30000);
 	
 	// run timers
-	totalTimer->start();
-	replanTimer->start();
+	//totalTimer->start();
+	//replanTimer->start();
 	
 	return app.exec();
 }

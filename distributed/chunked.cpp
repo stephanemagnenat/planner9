@@ -61,7 +61,7 @@ qint64 ChunkedDevice::readData(char* data, qint64 maxSize) {
 	if (readBuffer.isReadable()) {
 		//qDebug() << "* read stat" << readBuffer.pos() << readBuffer.size();
 		qint64 read = readBuffer.read(data, maxSize);
-		//qDebug() << "* read" << read << maxSize;
+		//qDebug() << "* read" << read << maxSize << readBuffer.pos();
 		if (parentDevice()->bytesAvailable() > 0)
 			parentReadyRead(false);
 		return read;
