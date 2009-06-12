@@ -87,12 +87,14 @@ static Variables fromDBusParams(const DBusParams& params) {
 }
 
 void MasterAdaptor::StartPlanning(const QStringList& constants, const DBusState& state, const DBusTask& task) {
-	// Create problem with scope
+	// Create scope
 	Scope scope;
 	scope.names.reserve(constants.size());
-	for (QStringList::const_iterator it = constants.begin(); it != constants.end(); ++it) {
-		scope.names.push_back(it->toStdString());
+	for (int i = 0; i < constants.size(); ++i) {
+		scope.names.push_back(constants[i].toStdString());
 	}
+	
+	// Create problem with scope
 	Problem problem(scope);
 	
 	// Add state

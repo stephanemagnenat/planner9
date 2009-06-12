@@ -12,6 +12,7 @@
 using namespace std;
 
 Dumper::Dumper(const MasterPlanner9& masterPlanner) :
+	masterPlanner(masterPlanner),
 	statsFile("stats.txt") {
 	connect(&masterPlanner, SIGNAL(planningStarted()), SLOT(planningStarted()));
 	connect(&masterPlanner, SIGNAL(planningSucceded(const Plan&)), SLOT(planningSucceded(const Plan&)));
@@ -26,6 +27,7 @@ void Dumper::planningStarted() {
 
 void Dumper::planningSucceded(const Plan& plan) {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
+	std::cerr << Scope::setScope(masterPlanner.getProblemScope());
 	std::cerr << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
 	statsFile << planningDuration;
 }

@@ -14,4 +14,7 @@ if (QT4_FOUND)
 	qt4_automoc(distributed.cpp)
 	add_executable(p9distributed distributed.cpp)
 	target_link_libraries(p9distributed ${QT_QTCORE_LIBRARIES} ${QT_QTNETWORK_LIBRARIES} ${QT_QTDBUS_LIBRARIES} planner9distributed planner9core)
+	
+	add_executable(p9client distributed-client.cpp)
+	target_link_libraries(p9client ${QT_QTCORE_LIBRARIES} ${QT_QTNETWORK_LIBRARIES} ${QT_QTDBUS_LIBRARIES} planner9distributed planner9core)
 endif (QT4_FOUND)

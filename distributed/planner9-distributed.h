@@ -75,7 +75,8 @@ public:
 	MasterPlanner9(const Domain& domain, std::ostream* debugStream = 0);
 	~MasterPlanner9();
 
-	const Domain& getDomain() { return stream.domain; }
+	const Scope& getProblemScope() const { return problem.scope; }
+	const Domain& getDomain() const { return stream.domain; }
 	
 	bool connectToSlave(const QString& hostName, quint16 port);
 
