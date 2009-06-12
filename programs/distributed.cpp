@@ -1,3 +1,5 @@
+#include "distributed.h"
+#include "distributed.moc"
 #include "../core/planner9.hpp"
 #include "../distributed/planner9-distributed.h"
 #include "../distributed/planner9-dbus.h"
@@ -8,38 +10,36 @@
 #include <QDBusMetaType>
 
 using namespace std;
-/*
-void MasterPlanner9::planFound(const Plan& plan) {
+
+Dumper::Dumper(const MasterPlanner9& masterPlanner) :
+	statsFile("stats.txt") {
+	connect(&masterPlanner, SIGNAL(planningStarted()), SLOT(planningStarted()));
+	connect(&masterPlanner, SIGNAL(planningSucceded(const Plan&)), SLOT(planningSucceded(const Plan&)));
+	connect(&masterPlanner, SIGNAL(planningFailed()), SLOT(planningFailed()));
+	connect(&masterPlanner, SIGNAL(planningFinished(const unsigned&)), SLOT(planningFinished(const unsigned&)));
+}
+
+void Dumper::planningStarted() {
+	planStartTime = QTime::currentTime();
+	std::cerr << "Starting planning" << std::endl;
+}
+
+void Dumper::planningSucceded(const Plan& plan) {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
 	std::cerr << "After " << planningDuration << " ms, plan:\n" << plan << std::endl;
 	statsFile << planningDuration;
 }
 
-void MasterPlanner9::noPlanFound() {
+void Dumper::planningFailed() {
 	const int planningDuration(planStartTime.msecsTo(QTime::currentTime()));
 	std::cerr << "After " << planningDuration << " ms, no plan." << std::endl;
 	statsFile << planningDuration;
 }
 
-
-	qDebug() << "Total Iterations" << totalIterationCount;
-	statsFile << " " << totalIterationCount << std::endl;
-	
-	
-
-	planStartTime = QTime::currentTime();
-	
-	qDebug() << "Starting planning";
-	
-	
-	
-	QTime planStartTime;
-	
-	
-	std::ofstream statsFile; // TODO cleanup this
-	
-	statsFile("stats.txt")
-	*/
+void Dumper::planningFinished(const unsigned& totalIterationsCount) {
+	std::cerr << "Planning finished, total Iterations " << totalIterationsCount << std::endl;
+	statsFile << " " << totalIterationsCount << std::endl;
+}
 
 int dumpError(char *exeName) {
 	std::cerr << "Error, usage " << exeName << " slave/master SLAVE0HOST SLAVE0PORT ... SLAVE1HOST SLAVE1PORT" << std::endl;
@@ -64,6 +64,7 @@ int runMaster(int argc, char* argv[]) {
 	
 	//MasterPlanner9 masterPlanner(problem, &std::cerr);
 	MasterPlanner9 masterPlanner(domain);
+	Dumper dumper(masterPlanner);
 	
 	MasterAdaptor::registerDBusTypes();
 	
