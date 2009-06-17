@@ -192,7 +192,7 @@ struct MyProblem: MyDomain, Problem {
 		add(isIn("r1", "a6"));
 		add(isIn("nut0", "a1"));
 		add(isIn("nut1", "a6"));
-		goal(move("o0", "a4") >> move("o0", "a5"));
+		goal(move("o0", "a4")/* >> move("o0", "a5")*/);
 	}
 
 };
