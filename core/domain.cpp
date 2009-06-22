@@ -122,6 +122,10 @@ Action::Action(Domain* domain, const std::string& name) :
 	Head(domain, name) {
 }
 
+void Action::pre() {
+	scope.merge(paramsScope); // make sure we have all the params
+}
+
 void Action::pre(const ScopedProposition& precondition) {
 	scope.merge(paramsScope); // make sure we have all the params
 	Substitution subst = scope.merge(precondition.scope);

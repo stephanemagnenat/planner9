@@ -32,6 +32,7 @@ std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 
 Planner9::Cost Planner9::SearchNode::getTotalCost() const {
 	return cost + network.first.size() + network.predecessors.size();
+	//return cost + plan.size() + (network.first.size() + network.predecessors.size());
 }
 
 

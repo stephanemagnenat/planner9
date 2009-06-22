@@ -73,6 +73,8 @@ struct Action: Head {
 
 	Action(Domain* domain, const std::string& name);
 
+	void pre();
+
 	void pre(const ScopedProposition& precondition);
 
 	void add(const ScopedProposition& atom);
