@@ -13,7 +13,7 @@ struct MyDomain: Domain {
 	EquivalentRelation isAdjacent, isConnected;
 	Relation isIn;
 
-	Action move, moveObject, setConnected, clearFire;
+	Action move, drop, setConnected, take, extinguish;
 	Method moveIfNeeded, connectArea, moveWithRobots, rescue;
 
 	MyDomain();
@@ -30,9 +30,10 @@ MyDomain::MyDomain():
 	isIn(this, "isIn", 2),
 	
 	move(this, "move"),
-	moveObject(this, "moveObject"),
+	drop(this, "drop"),
 	setConnected(this, "setConnected"),
-	clearFire(this, "clearFire"),
+	take(this, "take"),
+	extinguish(this, "extinguish"),
 	
 	moveIfNeeded(this, "moveIfNeeded"),
 	connectArea(this, "connectArea"),
@@ -48,54 +49,48 @@ MyDomain::MyDomain():
 	move.del(isIn("r", "a"));
 	move.add(isIn("r", "d"));
 
-	moveObject.param("o");
-	moveObject.param("d");
-	moveObject.param("s");
-	moveObject.param("r");
-	moveObject.pre(
-		object("o") &&
-		area("d") &&
-		area("s") &&
-		robots("r") &&
-		isIn("o", "s")
+	drop.param("r");
+	drop.param("o");
+	drop.pre(
+		area("a") &&
+		isIn("r", "a")
 	);
-	moveObject.del(isIn("o", "s"));
-	moveObject.add(isIn("o", "d"));
-	moveObject.add(isIn("r", "d"));
+	drop.add(isIn("o", "a"));
 
 	setConnected.param("d");
 	setConnected.param("s");
-	setConnected.pre(
-		area("d") &&
-		area("s")
-	);
+	setConnected.pre();
 	setConnected.add(isConnected("s", "d"));
-
-	clearFire.param("d");
-	clearFire.param("s");
-	clearFire.param("rob");
-	clearFire.param("res");
-	clearFire.pre(
-		area("d") &&
-		area("s") &&
-		area("resa") &&
-		robots("rob") &&
-		extinguisher("res") &&
-		isIn("res", "resa")
+	
+	take.param("r");
+	take.param("o");
+	take.pre(
+		area("a") &&
+		isIn("o", "a")
 	);
-	clearFire.add(isConnected("d",  "s"));
-	clearFire.del(isIn("res", "resa"));
+	take.del(isIn("o", "a"));
+
+	extinguish.param("d");
+	extinguish.param("s");
+	extinguish.param("rob");
+	extinguish.param("res");
+	extinguish.pre();
+	extinguish.add(isConnected("d",  "s"));
 
 	moveIfNeeded.param("d");
 	moveIfNeeded.param("r");
 	moveIfNeeded.alternative(
 		"already there",
+		area("d") &&
+		robots("r") &&
 		isIn("r", "d"),
 		ScopedTaskNetwork(),
 		0
 	);
 	moveIfNeeded.alternative(
 		"go",
+		area("d") &&
+		robots("r") &&
 		!isIn("r", "d"),
 		move("d", "r"),
 		0
@@ -123,7 +118,7 @@ MyDomain::MyDomain():
 		isConnected("s", "resa") &&
 		isAdjacent("s", "d") &&
 		!isConnected("s", "d"),
-		moveIfNeeded("resa", "rob") >> moveIfNeeded("s", "rob") >> clearFire("d", "s", "rob", "res")
+		moveIfNeeded("resa", "rob") >> take("rob", "res") >> moveIfNeeded("s", "rob") >> extinguish("d", "s", "rob", "res")
 	);
 	connectArea.alternative(
 		"recursion on source",
@@ -163,7 +158,7 @@ MyDomain::MyDomain():
 		area("a") &&
 		robots("r") &&
 		isIn("r", "a"),
-		connectArea("s", "a") >> moveIfNeeded("s", "r") >> moveIfNeeded("d", "r") >> moveObject("o", "d", "s", "r")
+		connectArea("s", "a") >> moveIfNeeded("s", "r") >> take("r", "o") >> moveIfNeeded("d", "r") >> drop("r", "o")
 	);
 
 	rescue.param("d");
@@ -207,6 +202,8 @@ struct MyProblem: MyDomain, Problem {
 		add(isIn("ext2", "a2"));
 		add(isIn("ext3", "a2"));
 		goal(rescue("a5")/* >> move("o0", "a5")*/);
+		//goal(extinguish("a1", "a0", "r0", "ext0"));
+		//goal(rescue("a1"));
 		//goal(moveIfNeeded("a1", "r1"));
 	}
 
