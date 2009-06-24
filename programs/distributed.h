@@ -12,7 +12,7 @@ class Dumper: public QObject {
 	Q_OBJECT
 
 public:
-	Dumper(const MasterPlanner9& masterPlanner);
+	Dumper(MasterPlanner9& masterPlanner, int maxRunCount);
 	
 public slots:
 	void planningStarted();
@@ -22,8 +22,10 @@ public slots:
 
 protected:
 	QTime planStartTime;
-	const MasterPlanner9& masterPlanner;
+	MasterPlanner9& masterPlanner;
 	std::ofstream statsFile;
+	int runCounter;
+	int maxRunCount;
 };
 		
 

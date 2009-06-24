@@ -3,17 +3,21 @@
 #include "../core/planner9.hpp"
 #include "../distributed/planner9-distributed.h"
 #include "../distributed/planner9-dbus.h"
-#include "../problems/robots.hpp"
+//#include "../problems/robots.hpp"
 //#include "problems/rover.hpp"
+#include "../problems/rescue.hpp"
 #include <QApplication>
 #include <QTimer>
 #include <QDBusMetaType>
 
 using namespace std;
 
-Dumper::Dumper(const MasterPlanner9& masterPlanner) :
+Dumper::Dumper(MasterPlanner9& masterPlanner, int maxRunCount) :
 	masterPlanner(masterPlanner),
-	statsFile("stats.txt") {
+	statsFile("stats.txt"),
+	runCounter(0),
+	maxRunCount(maxRunCount)
+{
 	connect(&masterPlanner, SIGNAL(planningStarted()), SLOT(planningStarted()));
 	connect(&masterPlanner, SIGNAL(planningSucceded(const Plan&)), SLOT(planningSucceded(const Plan&)));
 	connect(&masterPlanner, SIGNAL(planningFailed()), SLOT(planningFailed()));
@@ -41,6 +45,16 @@ void Dumper::planningFailed() {
 void Dumper::planningFinished(const unsigned& totalIterationsCount) {
 	std::cerr << "Planning finished, total Iterations " << totalIterationsCount << std::endl;
 	statsFile << " " << totalIterationsCount << std::endl;
+	if (maxRunCount) {
+		sleep(1);
+		runCounter++;
+		std::cerr << "Redoing planning for statistics, run " << runCounter << std::endl;
+		if (runCounter < maxRunCount) {
+			masterPlanner.replan();
+		} else {
+			QCoreApplication::quit();
+		}
+	}
 }
 
 int dumpError(char *exeName) {
@@ -66,32 +80,27 @@ int runMaster(int argc, char* argv[]) {
 	
 	//MasterPlanner9 masterPlanner(problem, &std::cerr);
 	MasterPlanner9 masterPlanner(domain);
-	Dumper dumper(masterPlanner);
+	int maxRunCount(0);
+	if (argc >= 3)
+		maxRunCount = atoi(argv[2]);
+	Dumper dumper(masterPlanner, maxRunCount);
 	
 	MasterAdaptor::registerDBusTypes();
 	
 	new MasterAdaptor(&masterPlanner);
 	
-	//masterPlanner.plan(problem);
+	/*
+	start plan only using dbus now  
+	masterPlanner.plan(problem);
+	*/
 	
+	/*
+	Use purely avahi now
 	for (int i = 2; i < argc; i+=2) {
 		masterPlanner.connectToSlave(argv[i], atoi(argv[i+1]));
 	}
-
-	/*// QTimer for statisticaly significant benchs
-	QTimer* replanTimer(new QTimer(&masterPlanner));
-	masterPlanner.connect(replanTimer, SIGNAL(timeout()), SLOT(replan()));
-	replanTimer->setInterval(40000);
-	
-	// QTimer  for total duration
-	QTimer* totalTimer(new QTimer(&masterPlanner));
-	app.connect(totalTimer, SIGNAL(timeout()), SLOT(quit()));
-	totalTimer->setInterval(40000 * 20 + 30000);
-	
-	// run timers
-	totalTimer->start();
-	replanTimer->start();
 	*/
+	
 	return app.exec();
 }
 

@@ -75,7 +75,8 @@ quint16 getIndex(const QString& s) {
 }
 
 /*
-  
+ 
+// for robots
 (
 	(object o0)
 	(object o1)
@@ -104,6 +105,38 @@ quint16 getIndex(const QString& s) {
 	(isIn nut1 a6)
 )
 (move o0 a4)
+
+// for rescue
+
+(
+	 (object o0)
+	 (robots r0)
+	 (robots r1)
+	 (area a0)
+	 (area a1)
+	 (area a2)
+	 (area a3)
+	 (area a4)
+	 (area a5)
+	 (isAdjacent a0 a1)
+	 (isAdjacent a0 a3)
+	 (isAdjacent a1 a2)
+	 (isAdjacent a1 a3)
+	 (isAdjacent a1 a4)
+	 (isAdjacent a4 a5)
+	 (isIn o0 a0)
+	 (isIn r0 a0)
+	 (isIn r1 a1)
+	 (extinguisher ext0)
+	 (extinguisher ext1)
+	 (extinguisher ext2)
+	 (extinguisher ext3)
+	 (isIn ext0 a0)
+	 (isIn ext1 a1)
+	 (isIn ext2 a2)
+	 (isIn ext3 a2)
+)
+(rescue a5)
   
   */
 
