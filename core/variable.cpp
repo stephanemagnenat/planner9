@@ -40,6 +40,10 @@ bool Variables::containsAny(const VariableSet& variables) {
 	return false;
 }
 
+bool Variables::operator<(const Variables& that) const {
+	return std::lexicographical_compare(begin(), end(), that.begin(), that.end());
+}
+
 std::ostream& operator<<(std::ostream& os, const Variables& variables) {
 	for(Variables::const_iterator it = variables.begin(); it != variables.end(); ++it) {
 		Variable variable = *it;

@@ -4,14 +4,31 @@
 #include <cstdarg>
 #include <cassert>
 
+Variables createParams(const Variable& p0, const Variable& p1) const {
+	Variables params;
+	params.reserve(2);
+	params.push_back(p0);
+	params.push_back(p1);
+	return params;
+}
 
-Relation::Relation(Domain* domain, const std::string& name, size_t arity):
+AbstractFunction::AbstractFunction(Domain* domain, const std::string& name, size_t arity):
 	name(name),
 	arity(arity) {
 	if (domain)
 		domain->registerRelation(*this);
 }
 
+AbstractFunction::VariablesRanges AbstractFunction::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
+	return VariableRange(constantsCount, true);
+}
+
+void AbstractFunction::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
+	// do nothing
+}
+
+
+// TODO
 ScopedProposition Relation::operator()(const char* first, ...) {
 	Scope::Names names;
 	names.push_back(first);
@@ -27,17 +44,70 @@ ScopedProposition Relation::operator()(const char* first, ...) {
 	return ScopedProposition(scope, new Atom(this, variables));
 }
 
-bool Relation::check(const Atom& atom, const State& state) const {
-	assert(atom.params.size() == arity);
-	return state.contains(atom);
+template<typename CoDomain>
+CoDomain Function::get(const Variables& params, const State& state) const {
+	assert(params.size() == arity);
+	State::Functions::const_iterator it = state.functions.find(this);
+	if (it == functions.end())
+		return CoDomain();
+
+	typedef FunctionState<Function<CoDomain> >::Values Values;
+	Values::const_iterator jt = it->second.values.find(params);
+	if (jt == it->second.values.end())
+		return CoDomain();
+		
+	return jt->second;
 }
 
-void Relation::set(const Literal& literal, State& state) const {
-	assert(literal.atom.params.size() == arity);
-	if(!literal.negated)
-		state.insert(literal.atom);
-	else
-		state.erase(literal.atom);
+template<typename CoDomain>
+void Function::set(const Variables& params, State& state, const CoDomain& value) const {
+	assert(params.size() == arity);
+	
+	typedef FunctionState<Function<CoDomain> > FunctionState;
+	if (value != CoDomain()) {
+		FunctionState*& functionState(functions[this]);
+		if (!functionState)
+			functionState = new FunctionState();
+		functionState->values[params] = value;
+	} else {
+		State::Functions::iterator it = state.functions.find(this);
+		if (it == state.functions.end())
+			return;
+		it->values.erase(params);
+		if (it->values.empty())	{
+			delete *it;
+			functions.erase(it);
+		}
+	}
+}
+
+template<typename CoDomain>
+SymmetricFunction::SymmetricFunction(Domain* domain, const std::string& name):
+	Relation(domain, name, 2) {
+}
+
+template<typename CoDomain>
+bool SymmetricFunction::get(const Variables& params, const State& state) const {
+	assert(params.size() == 2);
+	const Variable& p0 = params[0];
+	const Variable& p1 = params[1];
+	if(p0 <= p1) {
+		return Function<CoDomain>::get(params, state);
+	} else {
+		return Function<CoDomain>::get(createParams(p1, p0), state);
+	}
+}
+
+template<typename CoDomain>
+void SymmetricFunction::set(const Variables& params, State& state, const CoDomain& value) const {
+	assert(params.size() == 2);
+	const Variable& p0 = literal.atom.params[0];
+	const Variable& p1 = literal.atom.params[1];
+	if(p0 <= p1) {
+		Function<CoDomain>::set(params, state, value);
+	} else {
+		Function<CoDomain>::set(createAtom(p1, p0), state, value);
+	}
 }
 
 void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
@@ -87,35 +157,29 @@ Relation::VariablesRanges Relation::getRange(const Atom& atom, const State& stat
 	return atomRanges;
 }
 
-EquivalentRelation::EquivalentRelation(Domain* domain, const std::string& name):
-	Relation(domain, name, 2) {
-}
-
-bool EquivalentRelation::check(const Atom& atom, const State& state) const {
-	assert(atom.params.size() == 2);
-	const Variable& p0 = atom.params[0];
-	const Variable& p1 = atom.params[1];
-	if(p0 == p1) {
+bool EquivalentRelation::get(const Variables& params, const State& state) const {
+	assert(params.size() == 2);
+	const Variable& p0 = params[0];
+	const Variable& p1 = params[1];
+	if (p0 == p1) {
 		return true;
-	} else if(p0 < p1) {
-		return Relation::check(atom, state);
+	} else if (p0 < p1) {
+		return Function<bool>::get(params, state);
 	} else {
-		Atom inverseAtom(createAtom(p1, p0));
-		return Relation::check(inverseAtom, state);
+		return Function<bool>::get(createParams(p1, p0), state);
 	}
 }
 
-void EquivalentRelation::set(const Literal& literal, State& state) const {
-	assert(literal.atom.params.size() == 2);
-	const Variable& p0 = literal.atom.params[0];
-	const Variable& p1 = literal.atom.params[1];
+void EquivalentRelation::set(const Variables& params, State& state, const bool& value) const {
+	assert(params.size() == 2);
+	const Variable& p0 = params[0];
+	const Variable& p1 = params[1];
 	if(p0 == p1) {
 		assert(false);
 	} else if(p0 < p1) {
-		Relation::set(literal, state);
+		Function<bool>::set(params, state, value);
 	} else {
-		Literal myLiteral(createAtom(p1, p0), literal.negated);
-		Relation::set(myLiteral, state);
+		Function<bool>::set(createParams(p1, p0), state, value);
 	}
 }
 
@@ -185,20 +249,13 @@ Relation::VariablesRanges EquivalentRelation::getRange(const Atom& atom, const S
 	return atomRanges;
 }
 
-Atom EquivalentRelation::createAtom(const Variable& p0, const Variable& p1) const {
-	Variables params;
-	params.reserve(2);
-	params.push_back(p0);
-	params.push_back(p1);
-	return Atom(this, params);
-}
 
 
 EqualityRelation::EqualityRelation():
 	Relation(0, "=", 2) {
 }
 
-bool EqualityRelation::check(const Atom& atom, const State& /*state*/) const {
+bool EqualityRelation::get(const Atom& atom, const State& /*state*/) const {
 	assert(atom.params.size() == 2);
 	return atom.params[0] == atom.params[1];
 }

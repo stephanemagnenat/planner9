@@ -81,7 +81,16 @@ struct Action: Head {
 
 	void del(const ScopedProposition& atom);
 
-	struct Effects:public std::vector<Literal>  {
+	struct Effect {
+		Atom::Lookup left;
+		Atom::Predicate* right;
+		
+		Effet(const Effect& that);
+		Effet(const Atom::Lookup& left, Atom::Predicate* right);
+		~Effect();
+		void substitute(const Substitution& subst);
+	};
+	struct Effects:public std::vector<Effect>  {
 		State apply(const State& state, const Substitution subst) const;
 		void substitute(const Substitution& subst);
 	};

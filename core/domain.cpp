@@ -1,3 +1,24 @@
+/*  
+    Planner9, an embedded, modular, and distributed HTN planner
+
+    (c) 2009 Martin Voelkle <martin dot voelkle at gmail dot com>
+
+    (c) 2009 Stéphane Magnenat <stephane at magnenat dot net>
+    Mobots group (http://mobots.epfl.ch) - LSRO1 - EPFL
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, version 3 of the License.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include "domain.hpp"
 #include "logic.hpp"
 #include "relations.hpp"
@@ -141,30 +162,51 @@ void Action::del(const ScopedProposition& scopedAtom) {
 	effect(scopedAtom, true);
 }
 
+Action::Effect::Effet(const Effect& that) :
+	left(that.left),
+	right(that.right->clone()) {
+}		
+
+Action::Effect::Effet(const Atom::Lookup& left, Atom::Predicate* right) :
+	left(left),
+	right(right) {
+}
+
+Action::Effect::~Effect() {
+	delete right;
+}
+
+void Action::Effect::substitute(const Substitution& subst) {
+	effect.left.substitute(subst);
+	effect.right->substitute(subst);
+}
+
 State Action::Effects::apply(const State& state, const Substitution subst) const {
 	State newState(state);
 	for (const_iterator it = begin(); it != end(); ++it) {
-		Literal literal = *it;
-		literal.substitute(subst);
-		literal.atom.relation->set(literal, newState);
+		Effect effect(*it);
+		effect.substitute(subst);
+		right->set(state, newState, left);
 	}
 	return newState;
 }
 
 void Action::Effects::substitute(const Substitution& subst) {
 	for (iterator it = begin(); it != end(); ++it) {
-		Literal& literal = *it;
-		literal.substitute(subst);
+		(*it)->substitute(subst);
 	}
 }
 
 void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
 	scope.merge(paramsScope); // make sure we have all the params
-	const Atom* originalAtom = dynamic_cast<const Atom*>(scopedAtom.proposition);
-	assert(originalAtom != 0);
-	Atom atom(*originalAtom);
-	atom.substitute(scope.merge(scopedAtom.scope));
-	effects.push_back(Literal(atom, negated));
+	const Atom* originalAtom = boost::polymorphic_downcast<const Atom*>(scopedAtom.proposition);
+	const Atom::Lookup* originalLookup = boost::polymorphic_downcast<const Atom::Lookup*>(originalAtom->predicate);
+	Atom::Lookup lookup(*originalLookup);
+	lookup.substitute(scope.merge(scopedAtom.scope));
+	if (negated)
+		effects.push_back(Effect(lookup, new Call(ReturnFalse)));
+	else
+		effects.push_back(Effect(lookup, new Call(ReturnTrue)));
 }
 
 

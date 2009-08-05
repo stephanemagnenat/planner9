@@ -37,6 +37,8 @@ struct Variables: std::vector<Variable> {
 	bool containsAny(const VariableSet& variableSet);
 
 	static Substitution identity(size_t size);
+	
+	bool operator<(const Variables& that) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const Variables& variables);
 

@@ -4,8 +4,10 @@
 
 #include "scope.hpp"
 #include "variable.hpp"
+#include <boost/function.hpp>
 
 
+struct AbstractFunction;
 struct Relation;
 struct CNF;
 struct DNF;
@@ -22,22 +24,63 @@ struct Proposition {
 };
 
 struct Atom: Proposition {
+	struct Predicate;
+	
+	Atom(const Atom& that);
+	Atom(const Predicate* predicate);
 	Atom(const Relation* relation, const Variables& params);
-
-	bool operator<(const Atom& that) const;
+	~Atom();
+	
+	//Atom(const Function* relation, const Variables& params);
 
 	Atom* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	OptionalVariables unify(const Atom& atom, const size_t constantsCount, const Substitution& subst) const;
-	bool isCheckable(const size_t constantsCount) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const Atom& atom);
-
-	const Relation* relation;
-	Variables params;
-
+	
+	struct Lookup;
+	
+	struct Predicate {
+		virtual ~Predicate() {}
+		virtual Predicate* clone() const = 0;
+		virtual void substitute(const Substitution& subst) = 0;
+		virtual bool isCheckable(const size_t constantsCount) const = 0;
+		virtual bool check(const State& state) const = 0;
+		virtual void set(const State& oldState, State& newState, const Lookup& lookup) const = 0;
+		virtual void dump(std::ostream& os) const = 0;
+	};
+	
+	struct Lookup: Predicate {
+		Lookup(const AbstractFunction* function, const Variables& params);
+		Lookup* clone() const;
+		void substitute(const Substitution& subst);
+		bool isCheckable(const size_t constantsCount) const;
+		bool check(const State& state) const;
+		void set(const State& oldState, State& newState, const Lookup& lookup) const ;
+		void dump(std::ostream& os) const;
+		
+		const AbstractFunction* function;
+		Variables params;
+	};
+	
+	template<typename UserFunction>
+	struct Call: Predicate {
+		Call(const boost::function<UserFunction>& userFunction);
+		Call* clone() const;
+		void substitute(const Substitution& subst);
+		bool isCheckable(const size_t constantsCount) const;
+		bool check(const State& state) const;
+		void set(const State& oldState, State& newState, const Lookup& lookup) const ;
+		void dump(std::ostream& os) const;
+		
+		typedef std::vector<Lookup> Args;
+		boost::function<UserFunction> userFunction;
+		Args params;
+	};
+	
+	Predicate* predicate;
 };
 
 struct Not: Proposition {
@@ -86,6 +129,7 @@ struct And: Proposition {
 
 };
 
+// TODO: make atom a pointer
 struct Literal: Proposition {
 
 	Literal(const Atom& atom, bool negated);
@@ -171,9 +215,22 @@ struct ScopedProposition {
 
 	const Scope scope;
 	const Proposition *const proposition;
+};
 
+template<typename Return>
+struct ScopedLookup {
+	ScopedLookup(const Scope& scope, const Atom::Lookup& lookup);
+	
+	const Scope scope;
+	const Atom::Lookup lookup;
 };
 
 extern ScopedProposition True;
+
+ScopedProposition call(const boost::function<bool()>& userFunction);
+template<typename T1>
+ScopedProposition call(const boost::function<bool(T1)>& userFunction, const ScopedLookup<T1>& arg1);
+template<typename T1, typename T2>
+ScopedProposition call(const boost::function<bool(T1,T2)>& userFunction, const ScopedLookup<T1>& arg1, const ScopedLookup<T2>& arg2);
 
 #endif // LOGIC_HPP_
