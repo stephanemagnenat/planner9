@@ -1,17 +1,20 @@
 #include "logic.hpp"
 #include "relations.hpp"
 #include <stdexcept>
+#include <boost/mpl/assert.hpp>
+#include <boost/cast.hpp>
+namespace mpl = boost::mpl;
 
 Atom::Atom(const Atom& that) :
-	predicate(that->predicate->clone()) {
+	predicate(that.predicate->clone()) {
 }
 
-Atom::Atom(const Predicate* predicate) :
+Atom::Atom(AtomImpl* predicate) :
 	predicate(predicate) {
 }
 
 Atom::Atom(const Relation* relation, const Variables& params):
-	predicate(new Lookup(relation, params)) {
+	predicate(new AtomLookup(relation, params)) {
 }
 
 Atom::~Atom() {
@@ -39,9 +42,9 @@ void Atom::substitute(const Substitution& subst) {
 	predicate->substitute(subst);
 }
 
-bool Atom::isCheckable(const size_t constantsCount) const {
+/*bool Atom::isCheckable(const size_t constantsCount) const {
 	return predicate->isCheckable(constantsCount);
-}
+}*/
 
 /* Move this to relation
 OptionalVariables Lookup::unify(const Atom& atom, const size_t constantsCount, const Substitution& subst) const {
@@ -75,106 +78,12 @@ OptionalVariables Lookup::unify(const Atom& atom, const size_t constantsCount, c
 
 
 std::ostream& operator<<(std::ostream& os, const Atom& atom) {
-	predicate->dump(os);
+	atom.predicate->dump(os);
 	return os;
 }
 
 
-Atom::Lookup::Lookup(const AbstractFunction* function, const Variables& params) :
-	function(function),
-	params(params) {
-}
 
-Atom::Lookup* Atom::Lookup::clone() const {
-	return new Lookup(*this);
-}
-
-void Atom::Lookup::substitute(const Substitution& subst) {
-	params.substitute(subst);
-}
-
-void Atom::Lookup::dump(std::ostream& os) const {
-	if (function->name.empty() && params.size() == 1)
-		os << params;
-	else
-		os << function->name << "(" << params << ")";
-}
-
-
-bool Atom::Lookup::isCheckable(const size_t constantsCount) const {
-	for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
-		if (it->index >= constantsCount) {
-			return false;
-		}
-	}
-	return true;
-
-}
-
-bool Atom::Lookup::check(const State& state) const {
-	// ensure that we have a function returning a bool type (i.e. a Relation)
-	Function<bool>* relation(boost::polymorphic_downcast<Function<bool>*>(function));
-	return relation.get(params, state);
-}
-
-void Atom::Lookup::set(const State& oldState, State& newState, const Lookup& lookup) const {
-	// ensure that we have a function returning a bool type (i.e. a Relation)
-	Function<bool>* thisRelation(boost::polymorphic_downcast<Function<bool>*>(function));
-	Function<bool>* thatRelation(boost::polymorphic_downcast<Function<bool>*>(lookup.function));
-	bool val(thisRelations->get(params, oldState));
-	thatRelation->set(lookup.params, state, val);
-}
-
-template<typename UserFunction>
-Atom::Call(const boost::function<UserFunction>& userFunction) :
-	userFunction(userFunction) {
-}
-
-template<typename UserFunction>
-Atom::Call* Atom::Call::clone() const {
-	return new Call(*this);
-}
-
-template<typename UserFunction>
-void Atom::Call::substitute(const Substitution& subst) {
-	for (Args::const_iterator it = params.begin(); it != params.end(); ++it)
-		 params.substitute(subst);
-}
-
-template<typename UserFunction>
-bool Atom::Call::isCheckable(const size_t constantsCount) const {
-	for (Args::const_iterator it = params.begin(); it != params.end(); ++it) {
-		if (!it->isCheckable(constantsCount)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-template<typename UserFunction>
-bool Atom::Call::check(const State& state) const {
-	// if user function does not return bool, asserts false
-	// TODO: boost::function
-}
-
-template<typename UserFunction>
-void Atom::Call::set(const State& oldState, State& newState, const Lookup& lookup) const {
-	// ensure that we have a function returning a bool type (i.e. a Relation)
-	/*Function<bool>* thisRelation(boost::polymorphic_downcast<Function<bool>*>(function));
-	Function<bool>* thatRelation(boost::polymorphic_downcast<Function<bool>*>(lookup.function));
-	bool val(thisRelations->get(params, oldState));
-	thatRelation->set(lookup.params, state, val);*/
-	// TODO: boost::function
-}
-
-template<typename UserFunction>
-void Atom::Call::dump(std::ostream& os) const {
-	os << "user function " << userFunction;
-	for (Args::const_iterator it = params.begin(); it != params.end(); ++it) {
-		it->dump(os);
-		os << "\t";
-	}
-}
 
 
 Not::Not(Proposition* proposition):
@@ -406,6 +315,8 @@ DNF CNF::dnf() const {
 /// Simplifies the CNF, returns true if it was successful, false if simpliciation lead to an unsatisfiable proposition.
 /// If it returns false, cnf is untouched, otherwise it is updated with the simplified version
 
+// TODO: continue from here
+
 OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd) {
 	bool wasSimplified;
 	Substitution subst(Substitution::identity(variablesEnd));
@@ -618,26 +529,26 @@ ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) c
 
 ScopedProposition True;
 
-ScopedLookup::ScopedLookup(const Scope& scope, const Atom::Lookup& lookup) :
+ScopedLookup::ScopedLookup(const Scope& scope, const AtomLookup& lookup) :
 	scope(scope),
 	lookup(lookup) {
 }
 
 ScopedProposition call(const boost::function<bool()>& userFunction) {
-	Atom::Call* call(new Atom::Call(userFunction));
+	AtomCall* call(new AtomCall(userFunction));
 	return ScopedProposition(Scope(), call);
 }
 
 template<typename T1>
 ScopedProposition call(const boost::function<bool(T1)>& userFunction, const ScopedLookup<T1>& arg1) {
-	Atom::Call* call(new Atom::Call(userFunction));
+	AtomCall* call(new AtomCall(userFunction));
 	call->params.push_back(arg1.lookup);
 	return ScopedProposition(arg1.scope, call);
 }
 
 template<typename T1, typename T2>
 ScopedProposition call(const boost::function<bool(T1,T2)>& userFunction, const ScopedLookup<T1>& arg1, const ScopedLookup<T2>& arg2) {
-	Atom::Call* call(new Atom::Call(userFunction));
+	AtomCall* call(new AtomCall(userFunction));
 	call->params.push_back(arg1.lookup);
 	call->params.push_back(arg2.lookup);
 	Scope scope(arg1.scope);

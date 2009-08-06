@@ -21,9 +21,11 @@
 
 #include "domain.hpp"
 #include "logic.hpp"
+#include "atomimpl.hpp"
 #include "relations.hpp"
 #include <algorithm>
 #include <boost/algorithm/string/join.hpp>
+#include <boost/cast.hpp>
 #include <cstdarg>
 #include <iostream>
 
@@ -162,12 +164,12 @@ void Action::del(const ScopedProposition& scopedAtom) {
 	effect(scopedAtom, true);
 }
 
-Action::Effect::Effet(const Effect& that) :
+Action::Effect::Effect(const Effect& that) :
 	left(that.left),
 	right(that.right->clone()) {
 }		
 
-Action::Effect::Effet(const Atom::Lookup& left, Atom::Predicate* right) :
+Action::Effect::Effect(const AtomLookup& left, AtomImpl* right) :
 	left(left),
 	right(right) {
 }
@@ -177,8 +179,8 @@ Action::Effect::~Effect() {
 }
 
 void Action::Effect::substitute(const Substitution& subst) {
-	effect.left.substitute(subst);
-	effect.right->substitute(subst);
+	left.substitute(subst);
+	right->substitute(subst);
 }
 
 State Action::Effects::apply(const State& state, const Substitution subst) const {
@@ -186,27 +188,34 @@ State Action::Effects::apply(const State& state, const Substitution subst) const
 	for (const_iterator it = begin(); it != end(); ++it) {
 		Effect effect(*it);
 		effect.substitute(subst);
-		right->set(state, newState, left);
+		effect.right->set(state, newState, effect.left);
 	}
 	return newState;
 }
 
 void Action::Effects::substitute(const Substitution& subst) {
 	for (iterator it = begin(); it != end(); ++it) {
-		(*it)->substitute(subst);
+		it->substitute(subst);
 	}
+}
+
+bool ReturnFalse() {
+	return false;
+}
+bool ReturnTrue() {
+	return true;
 }
 
 void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
 	scope.merge(paramsScope); // make sure we have all the params
 	const Atom* originalAtom = boost::polymorphic_downcast<const Atom*>(scopedAtom.proposition);
-	const Atom::Lookup* originalLookup = boost::polymorphic_downcast<const Atom::Lookup*>(originalAtom->predicate);
-	Atom::Lookup lookup(*originalLookup);
+	const AtomLookup* originalLookup = boost::polymorphic_downcast<AtomLookup*>(originalAtom->predicate);
+	AtomLookup lookup(*originalLookup);
 	lookup.substitute(scope.merge(scopedAtom.scope));
 	if (negated)
-		effects.push_back(Effect(lookup, new Call(ReturnFalse)));
+		effects.push_back(Effect(lookup, new AtomCall<bool()>(ReturnFalse)));
 	else
-		effects.push_back(Effect(lookup, new Call(ReturnTrue)));
+		effects.push_back(Effect(lookup, new AtomCall<bool()>(ReturnTrue)));
 }
 
 

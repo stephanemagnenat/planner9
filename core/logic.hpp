@@ -1,11 +1,9 @@
 #ifndef LOGIC_HPP_
 #define LOGIC_HPP_
 
-
 #include "scope.hpp"
 #include "variable.hpp"
 #include <boost/function.hpp>
-
 
 struct AbstractFunction;
 struct Relation;
@@ -23,16 +21,15 @@ struct Proposition {
 
 };
 
+struct AtomImpl;
+struct AtomLookup;
+
 struct Atom: Proposition {
-	struct Predicate;
-	
 	Atom(const Atom& that);
-	Atom(const Predicate* predicate);
+	Atom(AtomImpl* predicate);
 	Atom(const Relation* relation, const Variables& params);
 	~Atom();
 	
-	//Atom(const Function* relation, const Variables& params);
-
 	Atom* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
@@ -42,45 +39,32 @@ struct Atom: Proposition {
 	
 	struct Lookup;
 	
-	struct Predicate {
-		virtual ~Predicate() {}
-		virtual Predicate* clone() const = 0;
-		virtual void substitute(const Substitution& subst) = 0;
-		virtual bool isCheckable(const size_t constantsCount) const = 0;
-		virtual bool check(const State& state) const = 0;
-		virtual void set(const State& oldState, State& newState, const Lookup& lookup) const = 0;
-		virtual void dump(std::ostream& os) const = 0;
-	};
+	AtomImpl* predicate;
+};
+
+struct AtomImpl {
+	virtual ~AtomImpl() {}
+	virtual AtomImpl* clone() const = 0;
+	virtual void substitute(const Substitution& subst) = 0;
+	virtual bool isCheckable(const size_t constantsCount) const = 0;
+	virtual bool check(const State& state) const = 0;
+	virtual void set(const State& oldState, State& newState, const AtomLookup& lookup) const = 0;
+	virtual void dump(std::ostream& os) const = 0;
+};
+
+struct AtomLookup: AtomImpl {
+	AtomLookup(const AbstractFunction* function, const Variables& params);
+	AtomLookup* clone() const;
+	void substitute(const Substitution& subst);
+	bool isCheckable(const size_t constantsCount) const;
+	bool check(const State& state) const;
+	template<typename Return>
+	Return get(const State& state) const;
+	void set(const State& oldState, State& newState, const AtomLookup& lookup) const ;
+	void dump(std::ostream& os) const;
 	
-	struct Lookup: Predicate {
-		Lookup(const AbstractFunction* function, const Variables& params);
-		Lookup* clone() const;
-		void substitute(const Substitution& subst);
-		bool isCheckable(const size_t constantsCount) const;
-		bool check(const State& state) const;
-		void set(const State& oldState, State& newState, const Lookup& lookup) const ;
-		void dump(std::ostream& os) const;
-		
-		const AbstractFunction* function;
-		Variables params;
-	};
-	
-	template<typename UserFunction>
-	struct Call: Predicate {
-		Call(const boost::function<UserFunction>& userFunction);
-		Call* clone() const;
-		void substitute(const Substitution& subst);
-		bool isCheckable(const size_t constantsCount) const;
-		bool check(const State& state) const;
-		void set(const State& oldState, State& newState, const Lookup& lookup) const ;
-		void dump(std::ostream& os) const;
-		
-		typedef std::vector<Lookup> Args;
-		boost::function<UserFunction> userFunction;
-		Args params;
-	};
-	
-	Predicate* predicate;
+	const AbstractFunction* function;
+	Variables params;
 };
 
 struct Not: Proposition {
@@ -219,10 +203,10 @@ struct ScopedProposition {
 
 template<typename Return>
 struct ScopedLookup {
-	ScopedLookup(const Scope& scope, const Atom::Lookup& lookup);
+	ScopedLookup(const Scope& scope, const AtomLookup& lookup);
 	
 	const Scope scope;
-	const Atom::Lookup lookup;
+	const AtomLookup lookup;
 };
 
 extern ScopedProposition True;

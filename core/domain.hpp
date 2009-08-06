@@ -82,11 +82,11 @@ struct Action: Head {
 	void del(const ScopedProposition& atom);
 
 	struct Effect {
-		Atom::Lookup left;
-		Atom::Predicate* right;
+		AtomLookup left;
+		AtomImpl* right;
 		
-		Effet(const Effect& that);
-		Effet(const Atom::Lookup& left, Atom::Predicate* right);
+		Effect(const Effect& that);
+		Effect(const AtomLookup& left, AtomImpl* right);
 		~Effect();
 		void substitute(const Substitution& subst);
 	};

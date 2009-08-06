@@ -1,7 +1,6 @@
 #ifndef RELATIONS_HPP_
 #define RELATIONS_HPP_
 
-
 #include "logic.hpp"
 #include <cassert>
 #include <map>
@@ -9,6 +8,7 @@
 
 struct State;
 struct Domain;
+struct Atom;
 
 struct AbstractFunction {
 	virtual ~AbstractFunction() {}
