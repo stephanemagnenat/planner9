@@ -1,9 +1,9 @@
 #ifndef LOGIC_HPP_
 #define LOGIC_HPP_
 
+#include "range.hpp"
 #include "scope.hpp"
 #include "variable.hpp"
-#include <boost/function.hpp>
 
 struct AbstractFunction;
 struct Relation;
@@ -46,6 +46,8 @@ struct AtomImpl {
 	virtual ~AtomImpl() {}
 	virtual AtomImpl* clone() const = 0;
 	virtual void substitute(const Substitution& subst) = 0;
+	virtual void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const = 0;
+	virtual VariablesRanges getRange(const State& state, const size_t constantsCount) const;
 	virtual bool isCheckable(const size_t constantsCount) const = 0;
 	virtual bool check(const State& state) const = 0;
 	virtual void set(const State& oldState, State& newState, const AtomLookup& lookup) const = 0;
@@ -56,6 +58,8 @@ struct AtomLookup: AtomImpl {
 	AtomLookup(const AbstractFunction* function, const Variables& params);
 	AtomLookup* clone() const;
 	void substitute(const Substitution& subst);
+	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const;
+	VariablesRanges getRange(const State& state, const size_t constantsCount) const;
 	bool isCheckable(const size_t constantsCount) const;
 	bool check(const State& state) const;
 	template<typename Return>
@@ -65,6 +69,17 @@ struct AtomLookup: AtomImpl {
 	
 	const AbstractFunction* function;
 	Variables params;
+};
+
+template<typename Return>
+struct ScopedLookup {
+	const Scope scope;
+	const AtomLookup lookup;
+	
+	ScopedLookup(const Scope& scope, const AtomLookup& lookup)  :
+		scope(scope),
+		lookup(lookup) {
+	}
 };
 
 struct Not: Proposition {
@@ -179,42 +194,5 @@ struct DNF: Proposition, std::vector<std::vector<Literal> > {
 	friend std::ostream& operator<<(std::ostream& os, const DNF& cnf);
 
 };
-
-
-
-struct ScopedProposition {
-	ScopedProposition();
-
-	ScopedProposition(const Scope& scope, const Proposition* proposition);
-
-	ScopedProposition(const ScopedProposition& proposition);
-
-	~ScopedProposition();
-
-	ScopedProposition operator!() const;
-
-	ScopedProposition operator&&(const ScopedProposition& that) const;
-
-	ScopedProposition operator||(const ScopedProposition& that) const;
-
-	const Scope scope;
-	const Proposition *const proposition;
-};
-
-template<typename Return>
-struct ScopedLookup {
-	ScopedLookup(const Scope& scope, const AtomLookup& lookup);
-	
-	const Scope scope;
-	const AtomLookup lookup;
-};
-
-extern ScopedProposition True;
-
-ScopedProposition call(const boost::function<bool()>& userFunction);
-template<typename T1>
-ScopedProposition call(const boost::function<bool(T1)>& userFunction, const ScopedLookup<T1>& arg1);
-template<typename T1, typename T2>
-ScopedProposition call(const boost::function<bool(T1,T2)>& userFunction, const ScopedLookup<T1>& arg1, const ScopedLookup<T2>& arg2);
 
 #endif // LOGIC_HPP_

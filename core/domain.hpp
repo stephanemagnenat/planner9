@@ -3,11 +3,14 @@
 
 
 #include "logic.hpp"
+#include "atomimpl.hpp"
+#include "expressions.hpp"
 #include "tasks.hpp"
 #include "state.hpp"
 #include <memory>
 #include <string>
 #include <vector>
+#include <boost/function.hpp>
 
 typedef int Cost;
 
@@ -136,5 +139,53 @@ struct Method: Head {
 	friend std::ostream& operator<<(std::ostream& os, const Method& method);
 
 };
+
+template<typename UserFunction>
+ScopedAtomCall<typename boost::function<UserFunction>::result_type>
+call(const boost::function<UserFunction>& userFunction) {
+	
+	typedef typename boost::function<UserFunction> BoostUserFunction;	
+	typedef AtomCall<UserFunction> CallType;
+	typedef ScopedAtomCall<typename BoostUserFunction::result_type> ReturnType;
+	
+	CallType* call(new CallType(userFunction));
+	
+	return ReturnType(Scope(), new Atom(call));
+}
+
+template<typename UserFunction>
+ScopedAtomCall<typename boost::function<UserFunction>::result_type>
+call(const boost::function<UserFunction>& userFunction,
+	const ScopedLookup<typename boost::function<UserFunction>::arg1_type>& arg1) {
+	
+	typedef typename boost::function<UserFunction> BoostUserFunction;	
+	typedef AtomCall<UserFunction> CallType;
+	typedef ScopedAtomCall<typename BoostUserFunction::result_type> ReturnType;
+	
+	CallType* call(new CallType(userFunction));
+	call->params.push_back(arg1.lookup);
+	
+	return ReturnType(arg1.scope, new Atom(call));
+}
+
+template<typename UserFunction>
+ScopedAtomCall<typename boost::function<UserFunction>::result_type>
+call(const boost::function<UserFunction>& userFunction,
+	const ScopedLookup<typename boost::function<UserFunction>::arg1_type>& arg1,
+	const ScopedLookup<typename boost::function<UserFunction>::arg2_type>& arg2) {
+	
+	typedef typename boost::function<UserFunction> BoostUserFunction;	
+	typedef AtomCall<UserFunction> CallType;
+	typedef ScopedAtomCall<typename BoostUserFunction::result_type> ReturnType;
+	
+	CallType* call(new CallType(userFunction));
+	call->params.push_back(arg1.lookup);
+	call->params.push_back(arg2.lookup);
+	Scope scope(arg1.scope);
+	Substitution subst = scope.merge(arg2.scope);
+	call->params.back().substitute(subst);
+	
+	return ReturnType(scope, new Atom(call));
+}
 
 #endif // DOMAIN_HPP_

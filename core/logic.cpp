@@ -42,41 +42,6 @@ void Atom::substitute(const Substitution& subst) {
 	predicate->substitute(subst);
 }
 
-/*bool Atom::isCheckable(const size_t constantsCount) const {
-	return predicate->isCheckable(constantsCount);
-}*/
-
-/* Move this to relation
-OptionalVariables Lookup::unify(const Atom& atom, const size_t constantsCount, const Substitution& subst) const {
-	Substitution unifyingSubst(subst);
-	if (relation != atom.relation)
-		return false;
-	assert(params.size() == atom.params.size());
-	// this is the grounded version
-	for (size_t i = 0; i < params.size(); ++i) {
-		const Variable& stateVariable = params[i];
-		const Variable& variable = atom.params[i];
-		if (variable.index < constantsCount) {
-			if (variable != stateVariable)
-				return false;
-		} else {
-			assert(variable.index < unifyingSubst.size());
-			Variable& substitutionVariable = unifyingSubst[variable.index];
-			if (substitutionVariable != variable) {
-				if (substitutionVariable != stateVariable)
-					return false;
-			} else {
-				substitutionVariable = stateVariable;
-			}
-		}
-	}
-
-	return unifyingSubst;
-}
-*/
-
-
-
 std::ostream& operator<<(std::ostream& os, const Atom& atom) {
 	atom.predicate->dump(os);
 	return os;
@@ -329,7 +294,7 @@ OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin,
 				const Literal& literal = it->front();
 				if(!literal.negated) {
 					const Atom& atom = literal.atom;
-					atom.relation->groundIfUnique(atom, state, variablesBegin, subst);
+					atom.predicate->groundIfUnique(state, variablesBegin, subst);
 				}
 			}
 		}
@@ -481,79 +446,3 @@ std::ostream& operator<<(std::ostream& os, const DNF& dnf) {
 	return os;
 }
 
-ScopedProposition::ScopedProposition():
-	proposition(new CNF) {
-}
-
-ScopedProposition::ScopedProposition(const Scope& scope, const Proposition* proposition):
-	scope(scope),
-	proposition(proposition) {
-}
-
-ScopedProposition::ScopedProposition(const ScopedProposition& proposition):
-	scope(proposition.scope),
-	proposition(proposition.proposition->clone()) {
-}
-
-ScopedProposition::~ScopedProposition() {
-	delete proposition;
-}
-
-ScopedProposition ScopedProposition::operator!() const {
-	return ScopedProposition(scope, new Not(proposition->clone()));
-}
-
-ScopedProposition ScopedProposition::operator&&(const ScopedProposition& that) const {
-	Scope scope(this->scope);
-	Substitution subst = scope.merge(that.scope);
-	Proposition* left = this->proposition->clone();
-	Proposition* right = that.proposition->clone();
-	right->substitute(subst);
-	And::Propositions propositions;
-	propositions.push_back(left);
-	propositions.push_back(right);
-	return ScopedProposition(scope, new And(propositions));
-}
-
-ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) const {
-	Scope scope(this->scope);
-	Substitution subst = scope.merge(that.scope);
-	Proposition* left = this->proposition->clone();
-	Proposition* right = that.proposition->clone();
-	right->substitute(subst);
-	Or::Propositions propositions;
-	propositions.push_back(left);
-	propositions.push_back(right);
-	return ScopedProposition(scope, new Or(propositions));
-}
-
-ScopedProposition True;
-
-ScopedLookup::ScopedLookup(const Scope& scope, const AtomLookup& lookup) :
-	scope(scope),
-	lookup(lookup) {
-}
-
-ScopedProposition call(const boost::function<bool()>& userFunction) {
-	AtomCall* call(new AtomCall(userFunction));
-	return ScopedProposition(Scope(), call);
-}
-
-template<typename T1>
-ScopedProposition call(const boost::function<bool(T1)>& userFunction, const ScopedLookup<T1>& arg1) {
-	AtomCall* call(new AtomCall(userFunction));
-	call->params.push_back(arg1.lookup);
-	return ScopedProposition(arg1.scope, call);
-}
-
-template<typename T1, typename T2>
-ScopedProposition call(const boost::function<bool(T1,T2)>& userFunction, const ScopedLookup<T1>& arg1, const ScopedLookup<T2>& arg2) {
-	AtomCall* call(new AtomCall(userFunction));
-	call->params.push_back(arg1.lookup);
-	call->params.push_back(arg2.lookup);
-	Scope scope(arg1.scope);
-	Substitution subst = scope.merge(arg2.scope);
-	call->params.back().substitute(subst);
-	return ScopedProposition(scope, call);
-}
-		

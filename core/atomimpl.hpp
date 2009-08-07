@@ -29,6 +29,7 @@ struct AtomLookupArg {
 	}
 };
 
+
 template<typename UserFunction>
 struct AtomCall: AtomImpl {
 	typedef typename boost::function<UserFunction> BoostUserFunction;
@@ -37,12 +38,40 @@ struct AtomCall: AtomImpl {
 	
 	BoostUserFunction userFunction;
 	AtomLookup params[BoostUserFunction::arity];
+		
+	AtomCall(const BoostUserFunction& userFunction) : userFunction(userFunction) {
+	}
 	
-	AtomCall(const BoostUserFunction& userFunction) : userFunction(userFunction) { }	
-	AtomCall* clone() const { return new AtomCall<UserFunction>(*this); }
-	void substitute(const Substitution& subst);
-	bool isCheckable(const size_t constantsCount) const;
-	bool check(const State& state) const;
+	AtomCall* clone() const {
+		return new AtomCall<UserFunction>(*this);
+	}
+	
+	void substitute(const Substitution& subst) {
+		for (size_t i = 0; i < BoostUserFunction::arity; ++i) {
+			 params[i].substitute(subst);
+		}
+	}
+
+	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const {
+	}
+	
+	VariablesRanges getRange(const State& state, const size_t constantsCount) const {
+		return VariablesRanges();
+	}
+	
+	bool isCheckable(const size_t constantsCount) const {
+		for (size_t i = 0; i < BoostUserFunction::arity; ++i){
+			if (!params[i].isCheckable(constantsCount)) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	bool check(const State& state) const {
+		return get<bool>(state);
+	}
+	
 	template<typename Return>
 	Return get(const State& state) const {
 		// make sure that the requested type is the same as the function returns
@@ -57,12 +86,20 @@ struct AtomCall: AtomImpl {
 		// invoke the function
 		return fusion::invoke(userFunction, args);
 	}
+	
 	void set(const State& oldState, State& newState, const AtomLookup& AtomLookup) const {	
 		const Function<UserFunctionReturnType>* thatFunction(boost::polymorphic_downcast<const Function<UserFunctionReturnType>*>(AtomLookup.function));
 		const UserFunctionReturnType val(get<UserFunctionReturnType>(oldState));
 		thatFunction->set(AtomLookup.params, newState, val);
 	}
-	void dump(std::ostream& os) const;
+	
+	void dump(std::ostream& os) const {
+		os << "user function of type " << typeid(userFunction).name();
+		for (size_t i = 0; i < BoostUserFunction::arity; ++i) {
+			params[i].dump(os);
+			os << "\t";
+		}
+	}
 };
 
 #endif

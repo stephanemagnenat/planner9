@@ -1,7 +1,6 @@
 #include "relations.hpp"
 #include "state.hpp"
 #include "domain.hpp"
-#include <cstdarg>
 #include <cassert>
 
 Variables createParams(const Variable& p0, const Variable& p1) const {
@@ -19,29 +18,13 @@ AbstractFunction::AbstractFunction(Domain* domain, const std::string& name, size
 		domain->registerRelation(*this);
 }
 
-AbstractFunction::VariablesRanges AbstractFunction::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
-	return VariableRange(constantsCount, true);
+AbstractFunction::VariablesRanges AbstractFunction::getRange(const Variables& params, const State& state, const size_t constantsCount) const {
+	// return full range in general case, as no entry means zero element of type
+	return VariablesRanges();
 }
 
-void AbstractFunction::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
-	// do nothing
-}
-
-
-// TODO
-ScopedProposition Relation::operator()(const char* first, ...) {
-	Scope::Names names;
-	names.push_back(first);
-	va_list vargs;
-	va_start(vargs, first);
-	for (size_t i = 1; i < arity; ++i)
-		names.push_back(va_arg(vargs, const char*));
-	va_end(vargs);
-
-	Scope scope(names);
-	Variables variables = Variables::identity(arity);
-
-	return ScopedProposition(scope, new Atom(this, variables));
+void AbstractFunction::groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const {
+	// do nothing in the general case
 }
 
 template<typename CoDomain>
@@ -110,13 +93,54 @@ void SymmetricFunction::set(const Variables& params, State& state, const CoDomai
 	}
 }
 
-void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
+ScopedProposition Relation::operator()(const char* first, ...) {
+	Scope::Names names;
+	names.push_back(first);
+	va_list vargs;
+	va_start(vargs, first);
+	for (size_t i = 1; i < arity; ++i)
+		names.push_back(va_arg(vargs, const char*));
+	va_end(vargs);
+
+	Scope scope(names);
+	Variables variables = Variables::identity(arity);
+
+	return ScopedProposition(scope, new Atom(this, variables));
+}
+
+OptionalVariables unify(const Variables& stateParams, const Variables& params, const size_t constantsCount, const Substitution& subst) const {
+	Substitution unifyingSubst(subst);
+	assert(stateParams.size() == params.size());
+	for (size_t i = 0; i < stateParams.size(); ++i) {
+		const Variable& stateVariable = stateParams[i];
+		const Variable& variable = params[i];
+		if (variable.index < constantsCount) {
+			if (variable != stateVariable)
+				return false;
+		} else {
+			assert(variable.index < unifyingSubst.size());
+			Variable& substitutionVariable = unifyingSubst[variable.index];
+			if (substitutionVariable != variable) {
+				if (substitutionVariable != stateVariable)
+					return false;
+			} else {
+				substitutionVariable = stateVariable;
+			}
+		}
+	}
+	return unifyingSubst;
+}
+
+
+void Relation::groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const {
 	OptionalVariables unifier;
-	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
-	if (it != state.atoms.end()) {
-		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
-			const Atom& stateAtom = *jt;
-			OptionalVariables newUnifier = stateAtom.unify(atom, constantsCount, subst);
+	State::Functions::const_iterator it = state.functions.find(function);
+	if (it != state.functions.end()) {
+		typedef typename State::FunctionState<bool> RelationState;
+		const RelationState* relationState(boost::polymorphic_downcast<const RelationState*>(*it));
+		for (RelationState::Values::const_iterator jt = relationState.values.begin(); jt != relationState.values.end(); ++jt) {
+			const Variables& stateParams(*jt);
+			OptionalVariables newUnifier = unify(statePredicate, params, constantsCount, subst);
 			if (newUnifier) {
 				if (unifier) {
 					return;
@@ -131,23 +155,25 @@ void Relation::groundIfUnique(const Atom& atom, const State& state, const size_t
 }
 
 /// Get variables range (extends it) with the ranges provided by this relation
-Relation::VariablesRanges Relation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
+Relation::VariablesRanges Relation::getRange(const Variables& params, const State& state, const size_t constantsCount) const {
 	VariablesRanges atomRanges;
 
-	for (Variables::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it) {
+	for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
 		const Variable& variable = *it;
 		if(variable.index >= constantsCount)
 			atomRanges[variable] = VariableRange(constantsCount, false);
 	}
 
-	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
-	if (it != state.atoms.end()) {
-		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
-			const Atom& stateAtom = *jt;
-			assert(arity == stateAtom.params.size());
+	State::Functions::const_iterator it = state.functions.find(function);
+	if (it != state.functions.end()) {
+		typedef typename State::FunctionState<bool> RelationState;
+		const RelationState* relationState(boost::polymorphic_downcast<const RelationState*>(*it));
+		for (RelationState::Values::const_iterator jt = relationState.values.begin(); jt != relationState.values.end(); ++jt) {
+			const Variables& stateParams(*jt);
+			assert(arity == stateParams.size());
 			for (size_t j = 0; j < arity; ++j) {
-				const Variable& constant = stateAtom.params[j];
-				const Variable& variable = atom.params[j];
+				const Variable& constant = stateParams[j];
+				const Variable& variable = params[j];
 				assert(constant.index < constantsCount);
 				if(variable.index >= constantsCount)
 					atomRanges[variable][constant.index] = true;
@@ -183,21 +209,22 @@ void EquivalentRelation::set(const Variables& params, State& state, const bool& 
 	}
 }
 
-void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, const size_t constantsCount, Substitution& subst) const {
+void EquivalentRelation::groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const {
 	const Variable& p0 = atom.params[0];
 	const Variable& p1 = atom.params[1];
 
-	Atom inverseAtom(createAtom(p1, p0));
+	Variables inverseParams(createParams(p1, p0));
 
 	// if present in the state, then not unique
-	// FIXME: is it cleaner to use this or atom.relation in the lookup?
-	State::AtomsPerRelation::const_iterator it = state.atoms.find(atom.relation);
-	if (it != state.atoms.end()) {
-		for (State::AtomSet::const_iterator jt = it->second.begin(); jt != it->second.end(); ++jt) {
-			const Atom& stateAtom = *jt;
-			if (stateAtom.unify(atom, constantsCount, subst))
+	State::Functions::const_iterator it = state.functions.find(function);
+	if (it != state.functions.end()) {
+		typedef typename State::FunctionState<bool> RelationState;
+		const RelationState* relationState(boost::polymorphic_downcast<const RelationState*>(*it));
+		for (RelationState::Values::const_iterator jt = relationState.values.begin(); jt != relationState.values.end(); ++jt) {
+			const Variables& stateParams(*jt);
+			if (unify(stateParams, params, constanstCount, subst))
 				return;
-			if (stateAtom.unify(inverseAtom, constantsCount, subst))
+			if (unify(stateParams, inverseParams, constanstCount, subst))
 				return;
 		}
 	}
@@ -220,9 +247,9 @@ void EquivalentRelation::groundIfUnique(const Atom& atom, const State& state, co
 	}
 }
 
-Relation::VariablesRanges EquivalentRelation::getRange(const Atom& atom, const State& state, const size_t constantsCount) const {
-	const Variable& p0 = atom.params[0];
-	const Variable& p1 = atom.params[1];
+Relation::VariablesRanges EquivalentRelation::getRange(const Variables& params, const State& state, const size_t constantsCount) const {
+	const Variable& p0 = params[0];
+	const Variable& p1 = params[1];
 	VariablesRanges atomRanges;
 
 	if (p0.index < constantsCount) {
@@ -230,16 +257,17 @@ Relation::VariablesRanges EquivalentRelation::getRange(const Atom& atom, const S
 			// we should not be called as simplify() has removed the atom already
 			assert(false);
 		} else {
-			atomRanges = Relation::getRange(atom, state, constantsCount);
-			const Atom inverseAtom(createAtom(p1, p0));
-			atomRanges[p1] |= Relation::getRange(atom, state, constantsCount)[p1];
+			atomRanges = Relation::getRange(params, state, constantsCount);
+			const Variables inverseParams(createParams(p1, p0));
+			atomRanges[p1] |= Relation::getRange(inverseParams, state, constantsCount)[p1];
 			atomRanges[p1][p0.index] = true;
 		}
 	} else {
 		if (p1.index < constantsCount) {
-			atomRanges = Relation::getRange(atom, state, constantsCount);
-			const Atom inverseAtom(createAtom(p1, p0));
-			atomRanges[p0] |= Relation::getRange(atom, state, constantsCount)[p0];
+			atomRanges = Relation::getRange(params, state, constantsCount);
+			const Variables inverseParams(createParams(p1, p0));
+			// TODO: check this, maybe there was a bug here before
+			atomRanges[p0] |= Relation::getRange(inverseParams, state, constantsCount)[p0];
 			atomRanges[p0][p1.index] = true;
 		} else {
 			// do nothing, only variables
@@ -255,19 +283,19 @@ EqualityRelation::EqualityRelation():
 	Relation(0, "=", 2) {
 }
 
-bool EqualityRelation::get(const Atom& atom, const State& /*state*/) const {
-	assert(atom.params.size() == 2);
-	return atom.params[0] == atom.params[1];
+bool EqualityRelation::get(const Variables& params, const State& /*state*/) const {
+	assert(params.size() == 2);
+	return params[0] == params[1];
 }
 
-void EqualityRelation::set(const Literal& /*literal*/, State& /*state*/) const {
+void EqualityRelation::set(const Variables& params, State& /*state*/, const bool& /*value*/) const; {
 	assert(false);
 }
 
-void EqualityRelation::groundIfUnique(const Atom& atom, const State& /*state*/, const size_t constantsCount, Substitution& subst) const {
+void EqualityRelation::groundIfUnique(const Variables& params, const State& /*state*/, const size_t constantsCount, Substitution& subst) const {
 	// ground with self
-	const Variable& p0 = atom.params[0];
-	const Variable& p1 = atom.params[1];
+	const Variable& p0 = params[0];
+	const Variable& p1 = params[1];
 
 	if (p0.index < constantsCount) {
 		if (p1.index < constantsCount) {
@@ -286,9 +314,9 @@ void EqualityRelation::groundIfUnique(const Atom& atom, const State& /*state*/, 
 	}
 }
 
-Relation::VariablesRanges EqualityRelation::getRange(const Atom& atom, const State& /*state*/, const size_t constantsCount) const {
-	const Variable p0 = atom.params[0];
-	const Variable p1 = atom.params[1];
+Relation::VariablesRanges EqualityRelation::getRange(const Variables& params, const State& /*state*/, const size_t constantsCount) const {
+	const Variable p0 = params[0];
+	const Variable p1 = params[1];
 	VariablesRanges atomRanges;
 
 	if (p0.index < constantsCount) {
