@@ -2,16 +2,16 @@
 #define LOGIC_HPP_
 
 #include "range.hpp"
-#include "scope.hpp"
+#include "expressions.hpp"
 #include "variable.hpp"
 
-struct AbstractFunction;
-struct Relation;
+template<typename ResultType>
+struct Function;
 struct CNF;
 struct DNF;
 struct State;
 
-struct Proposition {
+struct Proposition: Expression<bool> {
 	virtual ~Proposition() {}
 
 	virtual Proposition* clone() const = 0;
@@ -21,27 +21,24 @@ struct Proposition {
 
 };
 
-struct AtomImpl;
-struct AtomLookup;
-
 struct Atom: Proposition {
 	Atom(const Atom& that);
-	Atom(AtomImpl* predicate);
-	Atom(const Relation* relation, const Variables& params);
+	Atom(const Function<bool>* relation, const Variables& params);
 	~Atom();
-	
+
 	Atom* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
 
 	friend std::ostream& operator<<(std::ostream& os, const Atom& atom);
-	
-	struct Lookup;
-	
-	AtomImpl* predicate;
-};
 
+	struct Lookup;
+
+	const Function<bool>* function;
+	Variables params;
+};
+/*
 struct AtomImpl {
 	virtual ~AtomImpl() {}
 	virtual AtomImpl* clone() const = 0;
@@ -66,22 +63,11 @@ struct AtomLookup: AtomImpl {
 	Return get(const State& state) const;
 	void set(const State& oldState, State& newState, const AtomLookup& lookup) const ;
 	void dump(std::ostream& os) const;
-	
+
 	const AbstractFunction* function;
 	Variables params;
 };
-
-template<typename Return>
-struct ScopedLookup {
-	const Scope scope;
-	const AtomLookup lookup;
-	
-	ScopedLookup(const Scope& scope, const AtomLookup& lookup)  :
-		scope(scope),
-		lookup(lookup) {
-	}
-};
-
+*/
 struct Not: Proposition {
 
 	Not(Proposition* proposition);

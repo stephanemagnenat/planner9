@@ -54,4 +54,8 @@ ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) c
 	return ScopedProposition(scope, new Or(propositions));
 }
 
+Proposition ScopedProposition::proposition() {
+	return dynamic_cast<const Proposition*>(expression);
+}
+
 ScopedProposition True;

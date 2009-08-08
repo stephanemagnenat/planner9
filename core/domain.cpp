@@ -1,4 +1,4 @@
-/*  
+/*
     Planner9, an embedded, modular, and distributed HTN planner
 
     (c) 2009 Martin Voelkle <martin dot voelkle at gmail dot com>
@@ -21,7 +21,6 @@
 
 #include "domain.hpp"
 #include "logic.hpp"
-#include "atomimpl.hpp"
 #include "relations.hpp"
 #include <algorithm>
 #include <boost/algorithm/string/join.hpp>
@@ -91,7 +90,7 @@ void Domain::registerRelation(const Relation& rel) {
 	relationsNamesMap[rel.name] = &rel;
 	relationsVector.push_back(&rel);
 }
-	
+
 
 Head::Head(Domain* domain, const std::string& name) :
 	name(name),
@@ -129,7 +128,7 @@ ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	Variables variables = scope.getVariables(names);
 
 	TaskNetwork::Node* node = new TaskNetwork::Node(Task(this, variables));
-	
+
 	TaskNetwork network;
 	network.first.push_back(node);
 
@@ -167,7 +166,7 @@ void Action::del(const ScopedProposition& scopedAtom) {
 Action::Effect::Effect(const Effect& that) :
 	left(that.left),
 	right(that.right->clone()) {
-}		
+}
 
 Action::Effect::Effect(const AtomLookup& left, AtomImpl* right) :
 	left(left),
