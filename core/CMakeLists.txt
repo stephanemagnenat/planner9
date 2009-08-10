@@ -1,7 +1,6 @@
 set (PLANNER9CORE_SRC
 	domain.cpp
 	logic.cpp
-	atomimpl.cpp
 	expressions.cpp
 	plan.cpp
 	planner9.cpp

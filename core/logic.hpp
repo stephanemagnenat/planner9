@@ -22,52 +22,28 @@ struct Proposition: Expression<bool> {
 };
 
 struct Atom: Proposition {
+	typedef Function<bool> BoolFunction;
+	
 	Atom(const Atom& that);
-	Atom(const Function<bool>* relation, const Variables& params);
+	Atom(const Lookup<bool>& that);
+	Atom(const BoolFunction* function, const Variables& params);
 	~Atom();
 
 	Atom* clone() const;
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
+	
+	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const;
+	bool isCheckable(const size_t constantsCount) const;
+	bool check(const State& state) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const Atom& atom);
 
-	struct Lookup;
-
-	const Function<bool>* function;
+	const BoolFunction* function;
 	Variables params;
 };
-/*
-struct AtomImpl {
-	virtual ~AtomImpl() {}
-	virtual AtomImpl* clone() const = 0;
-	virtual void substitute(const Substitution& subst) = 0;
-	virtual void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const = 0;
-	virtual VariablesRanges getRange(const State& state, const size_t constantsCount) const;
-	virtual bool isCheckable(const size_t constantsCount) const = 0;
-	virtual bool check(const State& state) const = 0;
-	virtual void set(const State& oldState, State& newState, const AtomLookup& lookup) const = 0;
-	virtual void dump(std::ostream& os) const = 0;
-};
 
-struct AtomLookup: AtomImpl {
-	AtomLookup(const AbstractFunction* function, const Variables& params);
-	AtomLookup* clone() const;
-	void substitute(const Substitution& subst);
-	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const;
-	VariablesRanges getRange(const State& state, const size_t constantsCount) const;
-	bool isCheckable(const size_t constantsCount) const;
-	bool check(const State& state) const;
-	template<typename Return>
-	Return get(const State& state) const;
-	void set(const State& oldState, State& newState, const AtomLookup& lookup) const ;
-	void dump(std::ostream& os) const;
-
-	const AbstractFunction* function;
-	Variables params;
-};
-*/
 struct Not: Proposition {
 
 	Not(Proposition* proposition);

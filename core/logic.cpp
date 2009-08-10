@@ -1,24 +1,27 @@
 #include "logic.hpp"
 #include "relations.hpp"
+#include "expressions.hpp"
 #include <stdexcept>
 #include <boost/mpl/assert.hpp>
 #include <boost/cast.hpp>
 namespace mpl = boost::mpl;
 
 Atom::Atom(const Atom& that) :
-	predicate(that.predicate->clone()) {
+	function(that.function),
+	params(that.params) {
 }
 
-Atom::Atom(AtomImpl* predicate) :
-	predicate(predicate) {
+Atom::Atom(const Lookup<bool>& that) :
+	function(that.function),
+	params(that.params) {
 }
 
-Atom::Atom(const Relation* relation, const Variables& params):
-	predicate(new AtomLookup(relation, params)) {
+Atom::Atom(const BoolFunction* function, const Variables& params):
+	function(function),
+	params(params) {
 }
 
 Atom::~Atom() {
-	delete predicate;
 }
 
 Atom* Atom::clone() const {
@@ -39,15 +42,32 @@ DNF Atom::dnf() const {
 
 
 void Atom::substitute(const Substitution& subst) {
-	predicate->substitute(subst);
+	params.substitute(subst);
+}
+
+void Atom::groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const {
+	function->groundIfUnique(params, state, constantsCount, subst);
+}
+
+bool Atom::isCheckable(const size_t constantsCount) const {
+	for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
+	if (it->index >= constantsCount) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool Atom::check(const State& state) const {
+	return function->get(params, state);
 }
 
 std::ostream& operator<<(std::ostream& os, const Atom& atom) {
-	atom.predicate->dump(os);
-	return os;
+	if (atom.function->name.empty() && atom.params.size() == 1)
+		return os << atom.params;
+	else
+		return os << atom.function->name << "(" << atom.params << ")";
 }
-
-
 
 
 
@@ -293,8 +313,8 @@ OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin,
 			if(it->size() == 1) {
 				const Literal& literal = it->front();
 				if(!literal.negated) {
-					const Atom& atom = literal.atom;
-					atom.predicate->groundIfUnique(state, variablesBegin, subst);
+					const Atom& atom(literal.atom);
+					atom.groundIfUnique(state, variablesBegin, subst);
 				}
 			}
 		}
@@ -308,12 +328,13 @@ OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin,
 			Disjunction newDisjunction;
 			bool disjunctionTrue = false;
 			for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
-				const Literal& literal = *jt;
-				if (literal.atom.predicate->isCheckable(variablesBegin) == false) {
+				const Literal& literal(*jt);
+				const Atom& atom(literal.atom);
+				if (atom.isCheckable(variablesBegin) == false) {
 					newDisjunction.push_back(literal);
 				} else {
 					wasSimplified = true;
-					bool value = literal.atom.predicate->check(state) ^ literal.negated;
+					bool value = atom.check(state) ^ literal.negated;
 					if (value == true) {
 						disjunctionTrue = true;
 						break;

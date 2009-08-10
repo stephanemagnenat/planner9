@@ -1,20 +1,19 @@
 #include "expressions.hpp"
 #include "logic.hpp"
-#include "atomimpl.hpp"
 
 
 ScopedProposition::ScopedProposition():
 	proposition(new CNF) {
 }
 
-ScopedProposition::ScopedProposition(const ScopedAtomCall<bool>& atom):
-	scope(atom.scope),
-	proposition(atom.atom->clone()) {
-}
-
 ScopedProposition::ScopedProposition(const Scope& scope, const Proposition* proposition):
 	scope(scope),
 	proposition(proposition) {
+}
+
+ScopedProposition::ScopedProposition(const ScopedLookup<bool>& scopedLookup):
+	scope(scopedLookup.scope),
+	proposition(new Atom(scopedLookup.lookup.function, scopedLookup.lookup.params)) {
 }
 
 ScopedProposition::ScopedProposition(const ScopedProposition& proposition):
@@ -54,8 +53,5 @@ ScopedProposition ScopedProposition::operator||(const ScopedProposition& that) c
 	return ScopedProposition(scope, new Or(propositions));
 }
 
-Proposition ScopedProposition::proposition() {
-	return dynamic_cast<const Proposition*>(expression);
-}
 
 ScopedProposition True;

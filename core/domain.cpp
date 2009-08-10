@@ -155,49 +155,6 @@ void Action::pre(const ScopedProposition& precondition) {
 	this->precondition.substitute(subst);
 }
 
-void Action::add(const ScopedProposition& scopedAtom) {
-	effect(scopedAtom, false);
-}
-
-void Action::del(const ScopedProposition& scopedAtom) {
-	effect(scopedAtom, true);
-}
-
-Action::Effect::Effect(const Effect& that) :
-	left(that.left),
-	right(that.right->clone()) {
-}
-
-Action::Effect::Effect(const AtomLookup& left, AtomImpl* right) :
-	left(left),
-	right(right) {
-}
-
-Action::Effect::~Effect() {
-	delete right;
-}
-
-void Action::Effect::substitute(const Substitution& subst) {
-	left.substitute(subst);
-	right->substitute(subst);
-}
-
-State Action::Effects::apply(const State& state, const Substitution subst) const {
-	State newState(state);
-	for (const_iterator it = begin(); it != end(); ++it) {
-		Effect effect(*it);
-		effect.substitute(subst);
-		effect.right->set(state, newState, effect.left);
-	}
-	return newState;
-}
-
-void Action::Effects::substitute(const Substitution& subst) {
-	for (iterator it = begin(); it != end(); ++it) {
-		it->substitute(subst);
-	}
-}
-
 bool ReturnFalse() {
 	return false;
 }
@@ -205,16 +162,28 @@ bool ReturnTrue() {
 	return true;
 }
 
-void Action::effect(const ScopedProposition& scopedAtom, bool negated) {
-	scope.merge(paramsScope); // make sure we have all the params
-	const Atom* originalAtom = boost::polymorphic_downcast<const Atom*>(scopedAtom.proposition);
-	const AtomLookup* originalLookup = boost::polymorphic_downcast<AtomLookup*>(originalAtom->predicate);
-	AtomLookup lookup(*originalLookup);
-	lookup.substitute(scope.merge(scopedAtom.scope));
-	if (negated)
-		effects.push_back(Effect(lookup, new AtomCall<bool()>(ReturnFalse)));
-	else
-		effects.push_back(Effect(lookup, new AtomCall<bool()>(ReturnTrue)));
+void Action::add(const ScopedLookup<bool>& scopedLookup) {
+	assign(scopedLookup, ScopedLookup<bool>(call<bool>(ReturnTrue)));
+}
+
+void Action::del(const ScopedLookup<bool>& scopedLookup) {
+	assign(scopedLookup, ScopedLookup<bool>(call<bool>(ReturnTrue)));
+}
+
+
+
+State Action::Effects::apply(const State& state, const Substitution subst) const {
+	State newState(state);
+	for (const_iterator it = begin(); it != end(); ++it) {
+		(*it)->apply(state, newState, subst);
+	}
+	return newState;
+}
+
+void Action::Effects::substitute(const Substitution& subst) {
+	for (iterator it = begin(); it != end(); ++it) {
+		(*it)->substitute(subst);
+	}
 }
 
 

@@ -27,6 +27,7 @@ void AbstractFunction::groundIfUnique(const Variables& params, const State& stat
 	// do nothing in the general case
 }
 
+
 template<typename CoDomain>
 CoDomain Function::get(const Variables& params, const State& state) const {
 	assert(params.size() == arity);
@@ -91,21 +92,6 @@ void SymmetricFunction::set(const Variables& params, State& state, const CoDomai
 	} else {
 		Function<CoDomain>::set(createAtom(p1, p0), state, value);
 	}
-}
-
-ScopedProposition Relation::operator()(const char* first, ...) {
-	Scope::Names names;
-	names.push_back(first);
-	va_list vargs;
-	va_start(vargs, first);
-	for (size_t i = 1; i < arity; ++i)
-		names.push_back(va_arg(vargs, const char*));
-	va_end(vargs);
-
-	Scope scope(names);
-	Variables variables = Variables::identity(arity);
-
-	return ScopedProposition(scope, new Atom(this, variables));
 }
 
 OptionalVariables unify(const Variables& stateParams, const Variables& params, const size_t constantsCount, const Substitution& subst) const {
