@@ -23,15 +23,16 @@ public:
 	const Head* getHead(const std::string& name) const;
 	size_t getHeadIndex(const Head* head) const;
 
-	const Relation* getRelation(size_t index) const;
-	const Relation* getRelation(const std::string& name) const;
-	size_t getRelationIndex(const Relation* rel) const;
+	const AbstractFunction* getRelation(size_t index) const;
+	const AbstractFunction* getRelation(const std::string& name) const;
+	size_t getRelationIndex(const AbstractFunction* rel) const;
 
 private:
 	friend class Head;
-	friend class Relation;
+	friend class Action;
+	friend class Atom;
 	void registerHead(const Head& head);
-	void registerRelation(const Relation& rel);
+	void registerFunction(const AbstractFunction* function);
 
 private:
 	typedef std::vector<const Head*> HeadsVector;
@@ -41,9 +42,9 @@ private:
 	HeadsReverseMap headsReverseMap;
 	HeadsNamesMap headsNamesMap;
 
-	typedef std::vector<const Relation*> RelationsVector;
-	typedef std::map<std::string, const Relation*> RelationsNamesMap;
-	typedef std::map<const Relation*, size_t> RelationsReverseMap;
+	typedef std::vector<const AbstractFunction*> RelationsVector;
+	typedef std::map<std::string, const AbstractFunction*> RelationsNamesMap;
+	typedef std::map<const AbstractFunction*, size_t> RelationsReverseMap;
 	RelationsVector relationsVector;
 	RelationsNamesMap relationsNamesMap;
 	RelationsReverseMap relationsReverseMap;
@@ -69,7 +70,7 @@ struct Head {
 protected:
 
 	Scope paramsScope;
-
+	Domain* domain;
 };
 
 /// documentation test
@@ -89,6 +90,7 @@ struct Action: Head {
 		virtual ~AbstractEffect() {}
 		virtual void apply(const State& state, State& newState, const Substitution subst) const = 0;
 		virtual void substitute(const Substitution& subst) = 0;
+		virtual void updateAffectedFunctionsAndVariables(FunctionsSet& affectedFunctions, VariablesSet& affectedVariables, const size_t constantsCount) const = 0;
 	};
 
 	template<typename ValueType>
@@ -111,15 +113,31 @@ struct Action: Head {
 			left.substitute(subst);
 			right.substitute(subst);
 		}
+		
+		void updateAffectedVariables(const Variables& params, VariablesSet& affectedVariables, const size_t constantsCount) const {
+			for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
+				const Variable& variable(*it);
+				if(variable.index >= constantsCount)
+					affectedVariables.insert(variable);	
+			}
+		}
+		
+		virtual void updateAffectedFunctionsAndVariables(FunctionsSet& affectedFunctions, VariablesSet& affectedVariables, const size_t constantsCount) const {
+			// for left part, get function (because it will be written) and variables (because they must be ground)
+			affectedFunctions.insert(left.function);
+			updateAffectedVariables(left.params, affectedVariables, constantsCount);
+			// for right part, get only variables (because they must be ground)
+			updateAffectedVariables(right.params, affectedVariables, constantsCount);
+		}
 	};
 
 	struct Effects:public std::vector<AbstractEffect*>  {
 		State apply(const State& state, const Substitution subst) const;
 		void substitute(const Substitution& subst);
+		void updateAffectedFunctionsAndVariables(FunctionsSet& affectedFunctions, VariablesSet& affectedVariables, const size_t constantsCount) const;
 	};
 
 	const Scope& getScope() const { return scope; }
-//	std::vector<std::pair<GroundInstance, Substitution> > groundings();
 	const CNF& getPrecondition() const { return precondition; }
 	const Effects& getEffects() const { return effects; }
 
@@ -139,6 +157,8 @@ protected:
 		leftLookup.substitute(rightSubst);
 		rightLookup.substitute(rightSubst);
 		
+		domain->registerFunction(leftLookup.function);
+		domain->registerFunction(rightLookup.function);
 		effects.push_back(new Effect<ValueType>(leftLookup, rightLookup));
 	}
 

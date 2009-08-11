@@ -31,7 +31,7 @@ size_t Variables::defrag(size_t constantsCount) {
 	return index;
 }
 
-bool Variables::containsAny(const VariableSet& variables) {
+bool Variables::containsAny(const VariablesSet& variables) {
 	for (const_iterator it = begin(); it != end(); ++it) {
 		const Variable variable = *it;
 		if (variables.find(variable) != variables.end())

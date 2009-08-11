@@ -106,33 +106,22 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 				// discover which variables must be grounded
 
 				// collect all variables and relation affected by the effects
-				VariableSet affectedVariables;
-				{
-					typedef std::set<const Relation*> AffectedRelations;
-					AffectedRelations affectedRelations;
+				VariablesSet affectedVariables;
+				FunctionsSet affectedRelations;
 
-					// first iterate on all effects
-					for(Action::Effects::const_iterator it = effects.begin(); it != effects.end(); ++it) {
-						const Literal& literal = *it;
-						affectedRelations.insert(literal.atom.relation);
-						for (Variables::const_iterator jt = literal.atom.params.begin(); jt != literal.atom.params.end(); ++jt) {
-							const Variable& variable = *jt;
-							if(variable.index >= problemScope.getSize())
-								affectedVariables.insert(variable);
-						}
-					}
-
-					// then look into preconditions for all indirectly affected variables
-					for(CNF::const_iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
-						for(Clause::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-							const Atom& atom = jt->atom;
-							if (affectedRelations.find(atom.relation) != affectedRelations.end()) {
-								// the relation of this atom is affected, all its variables must be grounded
-								for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
-									const Variable& variable = *kt;
-									if(variable.index >= problemScope.getSize())
-										affectedVariables.insert(variable);
-								}
+				// first iterate on all effects and get a list of affected functions and variables
+				effects.updateAffectedFunctionsAndVariables(affectedRelations, affectedVariables, problemScope.getSize());
+				
+				// then look into preconditions for all indirectly affected variables
+				for(CNF::const_iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
+					for(Clause::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
+						const Atom& atom(jt->atom);
+						if (affectedRelations.find(atom.function) != affectedRelations.end()) {
+							// the relation of this atom is affected, all its variables must be grounded
+							for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
+								const Variable& variable = *kt;
+								if(variable.index >= problemScope.getSize())
+									affectedVariables.insert(variable);
 							}
 						}
 					}
@@ -140,7 +129,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 
 				// create a list of affected variables along with their ranges, set their range to maximum
 				VariablesRanges variablesRanges;
-				for (VariableSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
+				for (VariablesSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
 					const Variable& variable = *it;
 					variablesRanges[variable] = VariableRange(problemScope.getSize(), true);
 				}

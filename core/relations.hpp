@@ -27,6 +27,7 @@ struct Domain;
 struct Atom;
 
 struct AbstractFunction {
+	AbstractFunction(const std::string& name, size_t arity);
 	virtual ~AbstractFunction() {}
 
 	virtual void groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const;
@@ -36,10 +37,16 @@ struct AbstractFunction {
 	size_t arity;
 };
 
+typedef std::set<const AbstractFunction*> FunctionsSet;
+
 
 template<typename CoDomain>
 struct Function : AbstractFunction {
 	typedef CoDomain Storage;
+	
+	Function(const std::string& name, size_t arity):
+		AbstractFunction(name, arity) {
+	}
 
 	ScopedLookup<CoDomain> operator()(const char* first, ...) {
 		Scope::Names names;
@@ -72,7 +79,9 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 	BoostUserFunction userFunction;
 	Lookups lookups;
 
+	// TODO: in a way, get the domain to be able to store this relations
 	CallFunction(const BoostUserFunction& userFunction, Lookups lookups) :
+		Function<ResultType>(typeid(userFunction).name(), BoostUserFunction::arity),
 		userFunction(userFunction),
 		lookups(lookups) {
 	}
@@ -151,24 +160,11 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 */
 };
 
-template<typename CoDomain>
-struct SymmetricFunction : public Function<CoDomain> {
-
-	SymmetricFunction(Domain* domain, const std::string& name);
-
-	virtual CoDomain get(const Variables& params, const State& state) const;
-	virtual void set(const Variables& params, State& state, const CoDomain& value) const;
-};
-
-struct BooleanRelationStorage {
-	operator bool () { return true; }
-};
-
 struct Relation: Function<bool> {
-	typedef BooleanRelationStorage Storage;
+	//typedef BooleanRelationStorage Storage;
 	//typedef ::ScopedProposition ScopedExpression;
 
-	Relation(Domain* domain, const std::string& name, size_t arity);
+	Relation(const std::string& name, size_t arity);
 
 	ScopedProposition operator()(const char* first, ...);
 
@@ -177,10 +173,10 @@ struct Relation: Function<bool> {
 };
 
 struct EquivalentRelation : public Relation {
-	typedef BooleanRelationStorage Storage;
+	//typedef BooleanRelationStorage Storage;
 	//typedef ::ScopedProposition ScopedExpression;
 
-	EquivalentRelation(Domain* domain, const std::string& name);
+	EquivalentRelation(const std::string& name);
 
 	virtual bool get(const Variables& params, const State& state) const;
 	virtual void set(const Variables& params, State& state, const bool& value) const;
@@ -190,7 +186,7 @@ struct EquivalentRelation : public Relation {
 };
 
 struct EqualityRelation: public Relation {
-	typedef BooleanRelationStorage Storage;
+	//typedef BooleanRelationStorage Storage;
 	//typedef ::ScopedProposition ScopedExpression;
 
 	EqualityRelation();

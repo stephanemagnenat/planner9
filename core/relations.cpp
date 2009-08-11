@@ -1,6 +1,5 @@
 #include "relations.hpp"
 #include "state.hpp"
-#include "domain.hpp"
 #include <cassert>
 
 Variables createParams(const Variable& p0, const Variable& p1) const {
@@ -11,11 +10,9 @@ Variables createParams(const Variable& p0, const Variable& p1) const {
 	return params;
 }
 
-AbstractFunction::AbstractFunction(Domain* domain, const std::string& name, size_t arity):
+AbstractFunction::AbstractFunction(const std::string& name, size_t arity):
 	name(name),
 	arity(arity) {
-	if (domain)
-		domain->registerRelation(*this);
 }
 
 AbstractFunction::VariablesRanges AbstractFunction::getRange(const Variables& params, const State& state, const size_t constantsCount) const {
@@ -65,9 +62,10 @@ void Function::set(const Variables& params, State& state, const CoDomain& value)
 	}
 }
 
+/*s
 template<typename CoDomain>
 SymmetricFunction::SymmetricFunction(Domain* domain, const std::string& name):
-	Relation(domain, name, 2) {
+	Function(domain, name, 2) {
 }
 
 template<typename CoDomain>
@@ -92,6 +90,11 @@ void SymmetricFunction::set(const Variables& params, State& state, const CoDomai
 	} else {
 		Function<CoDomain>::set(createAtom(p1, p0), state, value);
 	}
+}
+*/
+
+Relation::Relation(const std::string& name, size_t arity):
+	Function<bool>(name, arity) {
 }
 
 OptionalVariables unify(const Variables& stateParams, const Variables& params, const size_t constantsCount, const Substitution& subst) const {
@@ -167,6 +170,10 @@ Relation::VariablesRanges Relation::getRange(const Variables& params, const Stat
 		}
 	}
 	return atomRanges;
+}
+
+EquivalentRelation::EquivalentRelation(const std::string& name):
+	Relation(name, 2) {
 }
 
 bool EquivalentRelation::get(const Variables& params, const State& state) const {
@@ -266,7 +273,7 @@ Relation::VariablesRanges EquivalentRelation::getRange(const Variables& params, 
 
 
 EqualityRelation::EqualityRelation():
-	Relation(0, "=", 2) {
+	Relation("=", 2) {
 }
 
 bool EqualityRelation::get(const Variables& params, const State& /*state*/) const {
@@ -274,7 +281,7 @@ bool EqualityRelation::get(const Variables& params, const State& /*state*/) cons
 	return params[0] == params[1];
 }
 
-void EqualityRelation::set(const Variables& params, State& /*state*/, const bool& /*value*/) const; {
+void EqualityRelation::set(const Variables& /*params*/, State& /*state*/, const bool& /*value*/) const; {
 	assert(false);
 }
 

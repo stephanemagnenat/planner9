@@ -29,7 +29,6 @@
 #include <iostream>
 
 Domain::Domain() {
-	registerRelation(equals);
 }
 
 const Head* Domain::getHead(size_t index) const {
@@ -56,14 +55,14 @@ size_t Domain::getHeadIndex(const Head* head) const {
 		return (size_t)-1;
 }
 
-const Relation* Domain::getRelation(size_t index) const {
+const AbstractFunction* Domain::getRelation(size_t index) const {
 	if (index < relationsVector.size())
 		return relationsVector[index];
 	else
 		return 0;
 }
 
-const Relation* Domain::getRelation(const std::string& name) const {
+const AbstractFunction* Domain::getRelation(const std::string& name) const {
 	RelationsNamesMap::const_iterator it = relationsNamesMap.find(name);
 	if (it != relationsNamesMap.end())
 		return it->second;
@@ -71,7 +70,7 @@ const Relation* Domain::getRelation(const std::string& name) const {
 		return 0;
 }
 
-size_t Domain::getRelationIndex(const Relation* rel) const {
+size_t Domain::getRelationIndex(const AbstractFunction* rel) const {
 	RelationsReverseMap::const_iterator it = relationsReverseMap.find(rel);
 	if (it != relationsReverseMap.end())
 		return it->second;
@@ -85,16 +84,19 @@ void Domain::registerHead(const Head& head) {
 	headsVector.push_back(&head);
 }
 
-void Domain::registerRelation(const Relation& rel) {
-	relationsReverseMap[&rel] = relationsVector.size();
-	relationsNamesMap[rel.name] = &rel;
-	relationsVector.push_back(&rel);
+void Domain::registerFunction(const AbstractFunction* function) {
+	if (relationsNamesMap.find(function->name) == relationsNamesMap.end()) {
+		relationsReverseMap[function] = relationsVector.size();
+		relationsNamesMap[function->name] = function;
+		relationsVector.push_back(function);
+	}
 }
 
 
 Head::Head(Domain* domain, const std::string& name) :
 	name(name),
-	minCost(0) {
+	minCost(0),
+	domain(domain) {
 	domain->registerHead(*this);
 }
 
@@ -153,6 +155,7 @@ void Action::pre(const ScopedProposition& precondition) {
 	Substitution subst = scope.merge(precondition.scope);
 	this->precondition = precondition.proposition->cnf();
 	this->precondition.substitute(subst);
+	// TODO: register functions
 }
 
 bool ReturnFalse() {
@@ -183,6 +186,12 @@ State Action::Effects::apply(const State& state, const Substitution subst) const
 void Action::Effects::substitute(const Substitution& subst) {
 	for (iterator it = begin(); it != end(); ++it) {
 		(*it)->substitute(subst);
+	}
+}
+
+void Action::Effects::updateAffectedFunctionsAndVariables(FunctionsSet& affectedFunctions, VariablesSet& affectedVariables, const size_t constantsCount) const {
+	for (const_iterator it = begin(); it != end(); ++it) {
+		(*it)->updateAffectedFunctionsAndVariables(affectedFunctions, affectedVariables, constantsCount);
 	}
 }
 

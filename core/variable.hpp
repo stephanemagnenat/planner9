@@ -24,7 +24,7 @@ struct Variable {
 
 };
 
-typedef std::set<Variable> VariableSet;
+typedef std::set<Variable> VariablesSet;
 
 struct Variables;
 typedef Variables Substitution;
@@ -34,7 +34,7 @@ struct Variables: std::vector<Variable> {
 	void substitute(const Substitution& subst);
 	size_t defrag(size_t constantsCount);
 	// TODO: dead code elimination
-	bool containsAny(const VariableSet& variableSet);
+	bool containsAny(const VariablesSet& variableSet);
 
 	static Substitution identity(size_t size);
 	

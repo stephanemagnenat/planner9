@@ -1,4 +1,5 @@
 #include "logic.hpp"
+#include "domain.hpp"
 #include "relations.hpp"
 #include "expressions.hpp"
 #include <stdexcept>
@@ -43,6 +44,10 @@ DNF Atom::dnf() const {
 
 void Atom::substitute(const Substitution& subst) {
 	params.substitute(subst);
+}
+
+void Atom::registerFunctions(Domain* domain) {
+	domain->registerFunction(function);
 }
 
 void Atom::groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const {
@@ -115,6 +120,10 @@ void Not::substitute(const Substitution& subst) {
 	proposition->substitute(subst);
 }
 
+void Not::registerFunctions(Domain* domain) {
+	proposition->registerFunctions(domain);
+}
+
 
 Or::Or(const Propositions& propositions):
 	propositions(propositions) {
@@ -154,6 +163,13 @@ void Or::substitute(const Substitution& subst) {
 	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
 		Proposition* proposition = *it;
 		proposition->substitute(subst);
+	}
+}
+
+void Or::registerFunctions(Domain* domain) {
+	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
+		Proposition* proposition(*it);
+		proposition->registerFunctions(domain);
 	}
 }
 
@@ -198,6 +214,13 @@ void And::substitute(const Substitution& subst) {
 	}
 }
 
+void And::registerFunctions(Domain* domain) {
+	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
+		Proposition* proposition(*it);
+		proposition->registerFunctions(domain);
+	}
+}
+
 
 Literal::Literal(const Atom& atom, bool negated):
 	atom(atom),
@@ -220,6 +243,10 @@ DNF Literal::dnf() const {
 
 void Literal::substitute(const Substitution& subst) {
 	atom.substitute(subst);
+}
+
+void Literal::registerFunctions(Domain* domain) {
+	atom.registerFunctions(domain);
 }
 
 std::ostream& operator<<(std::ostream& os, const Literal& literal) {
@@ -256,6 +283,12 @@ DNF Clause::dnf() const {
 void Clause::substitute(const Substitution& subst) {
 	for(iterator it = begin(); it != end(); ++it) {
 		it->substitute(subst);
+	}
+}
+
+void Clause::registerFunctions(Domain* domain) {
+	for(iterator it = begin(); it != end(); ++it) {
+		it->registerFunctions(domain);
 	}
 }
 
@@ -364,6 +397,14 @@ void CNF::substitute(const Substitution& subst) {
 	}
 }
 
+void CNF::registerFunctions(Domain* domain) {
+	for(iterator it = begin(); it != end(); ++it) {
+		for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+			jt->registerFunctions(domain);
+		}
+	}
+}
+
 void CNF::operator+=(const CNF& that) {
 	insert(end(), that.begin(), that.end());
 }
@@ -435,6 +476,14 @@ void DNF::substitute(const Substitution& subst) {
 	for(iterator it = begin(); it != end(); ++it) {
 		for(Conjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 			jt->substitute(subst);
+		}
+	}
+}
+
+void DNF::registerFunctions(Domain* domain) {
+	for(iterator it = begin(); it != end(); ++it) {
+		for(Conjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+			jt->registerFunctions(domain);
 		}
 	}
 }
