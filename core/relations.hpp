@@ -35,6 +35,8 @@ struct AbstractFunction {
 	virtual void groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const;
 	virtual VariablesRanges getRange(const Variables& params, const State& state, const size_t constantsCount) const;
 	
+	virtual State::AbstractFunctionState* createFunctionState() const = 0;
+	
 	std::string name;
 	size_t arity;
 };
@@ -60,7 +62,7 @@ struct Function : AbstractFunction {
 		Scope scope(names);
 		Variables variables = Variables::identity(arity);
 
-		return ScopedLookup<CoDomain>(scope, new Lookup<CoDomain>(this, variables));
+		return ScopedLookup<CoDomain>(scope, Lookup<CoDomain>(this, variables));
 	}
 
 	virtual CoDomain get(const Variables& params, const State& state) const {
@@ -89,6 +91,10 @@ struct Function : AbstractFunction {
 		} else {
 			state.erase<CoDomain>(this, params);
 		}
+	}
+	
+	virtual State::AbstractFunctionState* createFunctionState() const {
+		return new State::FunctionState<CoDomain>();
 	}
 };
 
@@ -134,8 +140,7 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 		
 		// create a fusion sequence for the arguments
 		UserFunctionArgs args(fusion::transform(lookups, functor));
-		//BOOST_MPL_ASSERT(( boost::is_same<Lookups, int>));
-
+		
 		// invoke the function
 		return fusion::invoke(userFunction, args);
 	}
@@ -143,56 +148,14 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 	virtual void set(const Variables& params, State& state, const ResultType& value) const {
 		assert(false);
 	}
-	
-	/*
-	CallFunction* clone() const {
-		return new CallFunction<UserFunction>(*this);
-	}
-
-	void substitute(const Substitution& subst) {
-		for (size_t i = 0; i < BoostUserFunction::arity; ++i) {
-			 params[i].substitute(subst);
-		}
-	}
-
-	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const {
-	}
-
-	VariablesRanges getRange(const State& state, const size_t constantsCount) const {
-		return VariablesRanges();
-	}
-
-	bool isCheckable(const size_t constantsCount) const {
-		for (size_t i = 0; i < BoostUserFunction::arity; ++i){
-			if (!params[i].isCheckable(constantsCount)) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	bool check(const State& state) const {
-		return get<bool>(state);
-	}
-
-	void dump(std::ostream& os) const {
-		os << "user function of type " << typeid(userFunction).name();
-		for (size_t i = 0; i < BoostUserFunction::arity; ++i) {
-			params[i].dump(os);
-			os << "\t";
-		}
-	}
-*/
 };
 
-struct BooleanRelationStorage {
+/*struct BooleanRelationStorage {
 	operator bool () const { return true; }
-};
+};*/
 
 struct Relation: Function<bool> {
 	Relation(const std::string& name, size_t arity);
-
-	ScopedProposition operator()(const char* first, ...);
 
 	virtual void groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const;
 	virtual VariablesRanges getRange(const Variables& params, const State& state, const size_t constantsCount) const;

@@ -21,13 +21,13 @@ struct MyDomain: Domain {
 };
 
 MyDomain::MyDomain():
-	robots(this, "robots", 1),
-	object(this, "object", 1),
-	extinguisher(this, "extinguisher", 1),
-	area(this, "area", 1),
-	isAdjacent(this, "isAdjacent"),
-	isConnected(this, "isConnected"),
-	isIn(this, "isIn", 2),
+	robots("robots", 1),
+	object("object", 1),
+	extinguisher("extinguisher", 1),
+	area("area", 1),
+	isAdjacent("isAdjacent"),
+	isConnected("isConnected"),
+	isIn("isIn", 2),
 	
 	move(this, "move"),
 	drop(this, "drop"),

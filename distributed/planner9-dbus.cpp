@@ -100,8 +100,9 @@ void MasterAdaptor::StartPlanning(const QStringList& constants, const DBusState&
 	// Add state
 	for (DBusState::const_iterator it = state.begin(); it != state.end(); ++it) {
 		const QString& relationName(it->relation);
-		const Relation* relation(master->getDomain().getRelation(relationName.toStdString()));
-		problem.state.insert(Atom(relation, fromDBusParams(it->params)));
+		const AbstractFunction* function(master->getDomain().getRelation(relationName.toStdString()));
+		// FIXME: how to add generic deselialization, string ?
+		//problem.state.insert(Atom(relation, fromDBusParams(it->params)));
 	}
 	
 	// Add initial task

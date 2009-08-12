@@ -1,6 +1,17 @@
 #include "expressions.hpp"
 #include "logic.hpp"
 
+ScopedProposition ScopedLookup<bool>::operator!() const {
+	return !ScopedProposition(*this);
+}
+
+ScopedProposition ScopedLookup<bool>::operator&&(const ScopedProposition& that) const {
+	return ScopedProposition(*this) && that;
+}
+
+ScopedProposition ScopedLookup<bool>::operator||(const ScopedProposition& that) const {
+	return ScopedProposition(*this) || that;
+}
 
 ScopedProposition::ScopedProposition():
 	proposition(new CNF) {

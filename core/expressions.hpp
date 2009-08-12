@@ -75,5 +75,24 @@ struct ScopedProposition {
 
 extern ScopedProposition True;
 
+template<>
+struct ScopedLookup<bool> {
+	const Scope scope;
+	const Lookup<bool> lookup;
+
+	ScopedLookup(const Scope& scope, const Lookup<bool> lookup) :
+		scope(scope),
+		lookup(lookup) {
+	}
+	
+	ScopedLookup(const Lookup<bool> lookup) :
+		lookup(lookup) {
+	}
+	
+	ScopedProposition operator!() const;
+	ScopedProposition operator&&(const ScopedProposition& that) const;
+	ScopedProposition operator||(const ScopedProposition& that) const;
+};
+
 
 #endif // EXPRESSIONS_HPP_

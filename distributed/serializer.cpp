@@ -1,5 +1,57 @@
 #include "serializer.hpp"
 #include "../core/relations.hpp"
+#include "../core/state.hpp"
+
+template<typename ValueType>
+void State::FunctionState<ValueType>::serialize(Serializer& serializer) const {
+	serializer.write<quint16>(values.size());
+	for (typename Values::const_iterator it = values.begin(); it != values.end(); ++it) {
+		const Variables& variables(it->first);
+		for (Variables::const_iterator jt = variables.begin(); jt != variables.end(); ++jt)
+			serializer.write<quint16>(jt->index);
+		serializer.write(it->second);
+	}
+}
+
+template<typename ValueType>
+void State::FunctionState<ValueType>::deserialize(Serializer& serializer, size_t arity) {
+	values.clear();
+	const quint16 count(serializer.read<quint16>());
+	for (size_t i = 0; i < count; ++i) {
+		Variables variables;
+		variables.reserve(arity);
+		for (size_t j = 0; j < arity; ++j) 
+			variables.push_back(Variable(serializer.read<quint16>()));
+		const ValueType value(serializer.read<ValueType>());
+		values[variables] = value;
+	}
+}
+
+struct State::FunctionState<float>;
+struct State::FunctionState<int>;
+
+template<>
+void State::FunctionState<bool>::serialize(Serializer& serializer) const {
+	serializer.write<quint16>(values.size());
+	for (Values::const_iterator it = values.begin(); it != values.end(); ++it) {
+		const Variables& variables(it->first);
+		for (Variables::const_iterator jt = variables.begin(); jt != variables.end(); ++jt)
+			serializer.write<quint16>(jt->index);
+	}
+}
+
+template<>
+void State::FunctionState<bool>::deserialize(Serializer& serializer, size_t arity) {
+	values.clear();
+	const quint16 count(serializer.read<quint16>());
+	for (size_t i = 0; i < count; ++i) {
+		Variables variables;
+		variables.reserve(arity);
+		for (size_t j = 0; j < arity; ++j) 
+			variables.push_back(Variable(serializer.read<quint16>()));
+		values[variables] = true;
+	}
+}
 
 const char* commandsNames[] = {
 	"CMD_PROBLEM_SCOPE",
@@ -48,7 +100,7 @@ void Serializer::write(const Plan& plan) {
 
 template<>
 void Serializer::write(const Atom& atom) {
-	write<quint16>(domain.getRelationIndex(atom.relation));
+	write<quint16>(domain.getRelationIndex(atom.function));
 	for (Variables::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it)
 		write<quint16>(it->index);
 }
@@ -69,19 +121,10 @@ void Serializer::write(const CNF& cnf) {
 
 template<>
 void Serializer::write(const State& state) {
-	size_t atomsCount(0);
-	
-	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
-		const State::AtomSet& atomSet(it->second);
-		atomsCount += atomSet.size();
-	}
-	
-	write<quint16>(atomsCount);
-	for (State::AtomsPerRelation::const_iterator it = state.atoms.begin(); it != state.atoms.end(); ++it) {
-		const State::AtomSet& atomSet(it->second);
-		for (State::AtomSet::const_iterator jt = atomSet.begin(); jt != atomSet.end(); ++jt) {
-			write(*jt);
-		}
+	write<quint16>(state.functions.size());
+	for (State::Functions::const_iterator it = state.functions.begin(); it != state.functions.end(); ++it) {
+		write<quint16>(domain.getRelationIndex(it->first));
+		it->second->serialize(*this);
 	}
 }
 
@@ -174,7 +217,7 @@ Plan Serializer::read() {
 
 template<>
 Atom Serializer::read() {
-	const Relation* relation(domain.getRelation(read<quint16>()));
+	const Atom::BoolFunction* relation(boost::polymorphic_downcast<const Atom::BoolFunction*>(domain.getRelation(read<quint16>())));
 	Variables variables;
 	variables.reserve(relation->arity);
 	for (size_t i = 0; i < relation->arity; ++i)
@@ -204,10 +247,15 @@ CNF Serializer::read() {
 template<>
 State Serializer::read() {
 	State state;
-	size_t atomsCount(read<quint16>());
-	for (size_t i = 0; i < atomsCount; ++i) {
-		state.insert(read<Atom>());
+	
+	const quint16 count(read<quint16>());
+	for (size_t i = 0; i < count; ++i) {
+		const AbstractFunction* function(domain.getRelation(read<quint16>()));
+		State::AbstractFunctionState* functionState(function->createFunctionState());
+		functionState->deserialize(*this, function->arity);
+		state.functions[function] = functionState;
 	}
+	
 	return state;
 }
 	
