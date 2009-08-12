@@ -5,46 +5,70 @@
 #include "logic.hpp"
 #include <algorithm>
 #include <set>
+#include <boost/cast.hpp>
 
-
+struct AbstractFunction;
 
 struct State {
 	struct AbstractFunctionState {
-		virtual void dump(std::ostream& os, bool& first) = 0;
+		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) = 0;
 	};
 	
-	template<typename Function>
+	template<typename ValueType>
 	struct FunctionState: AbstractFunctionState {
-		const Function* structure;
-		typedef std::map<Variables, typename Function::Storage> Values;
+		typedef std::map<Variables, ValueType> Values;
 		Values values;
 		
-		void dump(std::ostream& os, bool& first) {
+		void dump(std::ostream& os, bool& first, const std::string& functionName) {
 			for (typename Values::const_iterator it = values.begin(); it != values.end(); ++it) {
 				if(first) {
 					first = false;
 				} else {
 					os << ", ";
 				}
-				os << structure->name << "(" << it->first << ") : " << it->second;
+				os << functionName << "(" << it->first << ") : " << it->second;
 			}
 		}
 	};
 	
 	typedef std::map<const AbstractFunction*, AbstractFunctionState*> Functions;
+	typedef std::pair<const AbstractFunction*, AbstractFunctionState*> FunctionsEntry;
 	Functions functions;
+	
+	// params must be in global scope
+	template<typename ValueType>
+	void insert(const AbstractFunction* function, const Variables& params, const ValueType& value) {
+		typedef FunctionState<ValueType> FunctionState;
+		
+		Functions::iterator it(functions.find(function));
+		if (it == functions.end()) {
+			it = functions.insert(FunctionsEntry(function,new FunctionState())).first;
+		}
+		
+		FunctionState* functionState(boost::polymorphic_downcast<FunctionState*>(it->second));
+		functionState->values[params] = value;
+	}
+	
+	template<typename ValueType>
+	void erase(const AbstractFunction* function, const Variables& params) {
+		typedef FunctionState<ValueType> FunctionState;
+		
+		Functions::iterator it = functions.find(function);
+		if (it == functions.end())
+			return;
+		FunctionState* functionState(boost::polymorphic_downcast<FunctionState*>(it->second));
+		functionState->values.erase(params);
+		if (functionState->values.empty())	{
+			delete it->second;
+			functions.erase(it);
+		}
+	}
 	
 	friend std::ostream& operator<<(std::ostream& os, const State& state);
 };
 
 
-inline std::ostream& operator<<(std::ostream& os, const State& state) {
-	bool first = true;
-	for(State::Functions::const_iterator it = state.functions.begin(); it != state.functions.end(); ++it) {
-		it->second->dump(os, first);
-	}
-	return os;
-}
+std::ostream& operator<<(std::ostream& os, const State& state);
 
 
 #endif // STATE_HPP_

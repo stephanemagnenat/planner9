@@ -54,6 +54,10 @@ void Atom::groundIfUnique(const State& state, const size_t constantsCount, Subst
 	function->groundIfUnique(params, state, constantsCount, subst);
 }
 
+VariablesRanges Atom::getRange(const State& state, const size_t constantsCount) const {
+	return function->getRange(params, state, constantsCount);
+}
+
 bool Atom::isCheckable(const size_t constantsCount) const {
 	for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
 	if (it->index >= constantsCount) {

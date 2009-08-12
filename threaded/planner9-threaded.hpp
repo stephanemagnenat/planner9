@@ -4,6 +4,7 @@
 
 #include "../core/planner9.hpp"
 #include <boost/thread.hpp>
+#include <boost/thread/condition.hpp>
 #include <set>
 #include <map>
 

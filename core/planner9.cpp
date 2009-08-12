@@ -140,7 +140,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 					for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
 						const Literal& literal = *jt;
 						const Atom& atom = literal.atom;
-						VariablesRanges atomRanges(atom.predicate->getRange(state, problemScope.getSize()));
+						VariablesRanges atomRanges(atom.getRange(state, problemScope.getSize()));
 						// extend range of variables if it is to be grounded
 						for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
 							const Variable& variable = kt->first;

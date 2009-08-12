@@ -38,6 +38,7 @@ struct Atom: Proposition {
 	void registerFunctions(Domain* domain);
 	
 	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const;
+	VariablesRanges getRange(const State& state, const size_t constantsCount) const;
 	bool isCheckable(const size_t constantsCount) const;
 	bool check(const State& state) const;
 

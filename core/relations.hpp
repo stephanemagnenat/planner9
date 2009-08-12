@@ -3,6 +3,7 @@
 
 #include "expressions.hpp"
 #include "range.hpp"
+#include "state.hpp"
 #include <cassert>
 #include <cstdarg>
 #include <map>
@@ -17,6 +18,7 @@
 #include <boost/fusion/container/vector/convert.hpp>
 #include <boost/fusion/include/as_vector.hpp>
 #include <boost/mpl/pop_front.hpp>
+#include <boost/cast.hpp>
 
 namespace mpl = boost::mpl;
 namespace fusion = boost::fusion;
@@ -41,9 +43,7 @@ typedef std::set<const AbstractFunction*> FunctionsSet;
 
 
 template<typename CoDomain>
-struct Function : AbstractFunction {
-	typedef CoDomain Storage;
-	
+struct Function : AbstractFunction {	
 	Function(const std::string& name, size_t arity):
 		AbstractFunction(name, arity) {
 	}
@@ -63,8 +63,33 @@ struct Function : AbstractFunction {
 		return ScopedLookup<CoDomain>(scope, new Lookup<CoDomain>(this, variables));
 	}
 
-	virtual CoDomain get(const Variables& params, const State& state) const;
-	virtual void set(const Variables& params, State& state, const CoDomain& value) const;
+	virtual CoDomain get(const Variables& params, const State& state) const {
+		typedef State::FunctionState<CoDomain> FunctionState;
+		typedef typename FunctionState::Values Values;
+		
+		assert(params.size() == arity);
+		
+		State::Functions::const_iterator it = state.functions.find(this);
+		if (it == state.functions.end())
+			return CoDomain();
+	
+		const FunctionState* functionState(boost::polymorphic_downcast<const FunctionState*>(it->second));
+		typename Values::const_iterator jt(functionState->values.find(params));
+		if (jt == functionState->values.end())
+			return CoDomain();
+			
+		return jt->second;
+	}
+	
+	virtual void set(const Variables& params, State& state, const CoDomain& value) const {
+		assert(params.size() == arity);
+	
+		if (value != CoDomain()) {
+			state.insert<CoDomain>(this, params, value);
+		} else {
+			state.erase<CoDomain>(this, params);
+		}
+	}
 };
 
 template<typename UserFunction>
@@ -104,7 +129,7 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 		}
 	};
 
-	ResultType get(const Variables& params, const State& state) const {
+	virtual ResultType get(const Variables& params, const State& state) const {
 		LookupArg functor(params, state);
 		
 		// create a fusion sequence for the arguments
@@ -115,7 +140,7 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 		return fusion::invoke(userFunction, args);
 	}
 
-	void set(const Variables& params, State& state, const ResultType& value) const {
+	virtual void set(const Variables& params, State& state, const ResultType& value) const {
 		assert(false);
 	}
 	
@@ -160,10 +185,11 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 */
 };
 
-struct Relation: Function<bool> {
-	//typedef BooleanRelationStorage Storage;
-	//typedef ::ScopedProposition ScopedExpression;
+struct BooleanRelationStorage {
+	operator bool () const { return true; }
+};
 
+struct Relation: Function<bool> {
 	Relation(const std::string& name, size_t arity);
 
 	ScopedProposition operator()(const char* first, ...);
@@ -173,9 +199,6 @@ struct Relation: Function<bool> {
 };
 
 struct EquivalentRelation : public Relation {
-	//typedef BooleanRelationStorage Storage;
-	//typedef ::ScopedProposition ScopedExpression;
-
 	EquivalentRelation(const std::string& name);
 
 	virtual bool get(const Variables& params, const State& state) const;
@@ -186,9 +209,6 @@ struct EquivalentRelation : public Relation {
 };
 
 struct EqualityRelation: public Relation {
-	//typedef BooleanRelationStorage Storage;
-	//typedef ::ScopedProposition ScopedExpression;
-
 	EqualityRelation();
 
 	virtual bool get(const Variables& params, const State& state) const;

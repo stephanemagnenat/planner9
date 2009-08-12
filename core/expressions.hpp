@@ -39,7 +39,6 @@ struct Lookup: Expression<CoDomain> {
 	}
 };
 
-
 template<typename CoDomain>
 struct ScopedLookup {
 	const Scope scope;

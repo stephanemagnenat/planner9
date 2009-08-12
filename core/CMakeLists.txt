@@ -2,6 +2,7 @@ set (PLANNER9CORE_SRC
 	domain.cpp
 	logic.cpp
 	expressions.cpp
+	state.cpp
 	plan.cpp
 	planner9.cpp
 	problem.cpp
