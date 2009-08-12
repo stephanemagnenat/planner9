@@ -14,7 +14,6 @@ struct State {
 	struct AbstractFunctionState {
 		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) = 0;
 		
-		// do not call these function unless you implement them
 		virtual void serialize(Serializer& serializer) const = 0;
 		virtual void deserialize(Serializer& serializer, size_t arity) = 0;
 	};
@@ -35,9 +34,10 @@ struct State {
 			}
 		}
 		
-		// do not call these function unless you implement them
-		virtual void serialize(Serializer& serializer) const;
-		virtual void deserialize(Serializer& serializer, size_t arity);
+		// do not call these function unless you implement them;
+		// the weak attribute will prevent a compilation error but will result in a runtime crash.
+		__attribute__ ((weak)) virtual void serialize(Serializer& serializer) const;
+		__attribute__ ((weak)) virtual void deserialize(Serializer& serializer, size_t arity);
 	};
 	
 	typedef std::map<const AbstractFunction*, AbstractFunctionState*> Functions;

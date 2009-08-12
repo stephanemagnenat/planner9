@@ -23,14 +23,14 @@ struct MyDomain: Domain {
 };
 
 MyDomain::MyDomain():
-	robots(this, "robots", 1),
-	object(this, "object", 1),
-	resource(this, "resource", 1),
-	area(this, "area", 1),
-	isConnectable(this, "isConnectable"),
-	isConnected(this, "isConnected"),
-	isIn(this, "isIn", 2),
-	recursionBlock(this, "recursionBlock", 2),
+	robots("robots", 1),
+	object("object", 1),
+	resource("resource", 1),
+	area("area", 1),
+	isConnectable("isConnectable"),
+	isConnected("isConnected"),
+	isIn("isIn", 2),
+	recursionBlock("recursionBlock", 2),
 	
 	moveObject(this, "moveObject"),
 	setConnected(this, "setConnected"),
