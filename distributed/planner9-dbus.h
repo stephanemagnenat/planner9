@@ -14,6 +14,7 @@ typedef QList<quint16> DBusParams;
 struct DBusAtom {
 	QString relation;
 	DBusParams params;
+	QString value;
 };
 typedef QList<DBusAtom> DBusState;
 

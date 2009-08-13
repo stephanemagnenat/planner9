@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <set>
 #include <boost/cast.hpp>
+#include <istream>
+#include <sstream>
 
 struct AbstractFunction;
 struct Serializer;
@@ -16,12 +18,18 @@ struct State {
 		
 		virtual AbstractFunctionState* clone() const = 0;
 		
+		virtual void insert(const Variables& params, const std::string& value) = 0;
+		
 		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) = 0;
 		
 		virtual void serialize(Serializer& serializer) const = 0;
-		virtual void deserialize(Serializer& serializer, size_t arity) = 0;
-		
+		virtual void deserialize(Serializer& serializer, size_t arity) = 0;		
 	};
+	
+	template <typename T>
+	static T GetDefaultInsertValue() {
+		return T();		
+	}
 	
 	template<typename ValueType>
 	struct FunctionState: AbstractFunctionState {
@@ -30,6 +38,17 @@ struct State {
 		
 		virtual AbstractFunctionState* clone() const {
 			return new FunctionState<ValueType>(*this);
+		}
+		
+		virtual void insert(const Variables& params, const std::string& value) {
+			if (value.empty()) {
+				ValueType v;
+				std::istringstream iss(value);
+				iss >> v;
+				values[params] = v;
+			} else {
+				values[params] = GetDefaultInsertValue<ValueType>();
+			}
 		}
 		
 		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) {
@@ -88,6 +107,11 @@ struct State {
 	
 	friend std::ostream& operator<<(std::ostream& os, const State& state);
 };
+
+template <>
+inline bool State::GetDefaultInsertValue<bool>() {
+	return true;
+}
 
 
 std::ostream& operator<<(std::ostream& os, const State& state);

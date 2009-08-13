@@ -10,28 +10,63 @@
 #include <cstdio>
 #include <iostream>
 
-struct NamedList
-{
-	QString name;
-	QList<quint16> params;
+typedef QList<quint16> DBusParams;
+
+Q_DECLARE_METATYPE(DBusParams)
+
+struct DBusAtom {
+	QString function;
+	DBusParams params;
+	QString value;
 };
-typedef QList<NamedList> NamedListVector;
+typedef QList<DBusAtom> DBusState;
 
-Q_DECLARE_METATYPE(NamedList)
-Q_DECLARE_METATYPE(NamedListVector)
+Q_DECLARE_METATYPE(DBusAtom)
+Q_DECLARE_METATYPE(DBusState)
 
-QDBusArgument &operator<<(QDBusArgument &argument, const NamedList &entry) {
+struct DBusTask {
+	QString head;
+	DBusParams params;
+};
+typedef QList<DBusTask> DBusPlan;
+
+Q_DECLARE_METATYPE(DBusTask)
+Q_DECLARE_METATYPE(DBusPlan)
+
+QDBusArgument &operator<<(QDBusArgument &argument, const DBusAtom &atom) {
 	argument.beginStructure();
-	argument << entry.name << entry.params;
+	argument << atom.function << atom.params << atom.value;
 	argument.endStructure();
 	return argument;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &argument, NamedList &entry) {
+const QDBusArgument &operator>>(const QDBusArgument &argument, DBusAtom &atom) {
 	argument.beginStructure();
-	argument >> entry.name >> entry.params;
+	argument >> atom.function >> atom.params >> atom.value;
 	argument.endStructure();
 	return argument;
+}
+
+QDBusArgument &operator<<(QDBusArgument &argument, const DBusTask &task) {
+	argument.beginStructure();
+	argument << task.head << task.params;
+	argument.endStructure();
+	return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, DBusTask &task) {
+	argument.beginStructure();
+	argument >> task.head >> task.params;
+	argument.endStructure();
+	return argument;
+}
+
+void registerDBusTypes() {
+	qDBusRegisterMetaType<DBusParams>();
+	qDBusRegisterMetaType<DBusAtom>();
+	qDBusRegisterMetaType<DBusState>();
+	qDBusRegisterMetaType<DBusTask>();
+	qDBusRegisterMetaType<DBusPlan>();
 }
 
 // support functions for parsing
@@ -143,31 +178,36 @@ quint16 getIndex(const QString& s) {
 int main(int argc, char* argv[]) {
 	QCoreApplication app(argc, argv);
 	
-	qDBusRegisterMetaType<NamedList>();
-	qDBusRegisterMetaType<NamedListVector>();
+	registerDBusTypes();
 	
 	QTextStream input(stdin);
 	QString word;
 	
-	NamedListVector state;
-	NamedList task;
+	DBusState state;
+	DBusTask task;
 	
 	// parse state
 	eat(input, '(');
 	while (true) {
 		if (eatOneOf(input, '(', ')'))
 			break;
-		NamedList entry;
+		DBusAtom entry;
 		input >> word;
-		entry.name = word;
+		entry.function = word;
 		input >> word;
 		while (!word.endsWith(')')) {
-			entry.params.push_back(getIndex(word));
+			QStringList list(word.split("="));
+			entry.params.push_back(getIndex(list.at(0)));
+			if (list.size() > 1)
+				entry.value = list.at(1);
 			input >> word;
 		}
 		if (word.size() > 1) {
 			word.chop(1);
-			entry.params.push_back(getIndex(word));
+			QStringList list(word.split("="));
+			entry.params.push_back(getIndex(list.at(0)));
+			if (list.size() > 1)
+				entry.value = list.at(1);
 		}
 		state.push_back(entry);
 	}
@@ -177,9 +217,9 @@ int main(int argc, char* argv[]) {
 	input >> word;
 	if (word.endsWith(')')) {
 		word.chop(1);
-		task.name = word;
+		task.head = word;
 	} else {
-		task.name = word;
+		task.head = word;
 		input >> word;
 		while (!word.endsWith(')')) {
 			task.params.push_back(getIndex(word));

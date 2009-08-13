@@ -8,14 +8,14 @@
 
 QDBusArgument &operator<<(QDBusArgument &argument, const DBusAtom &atom) {
 	argument.beginStructure();
-	argument << atom.relation << atom.params;
+	argument << atom.relation << atom.params << atom.value;
 	argument.endStructure();
 	return argument;
 }
 
 const QDBusArgument &operator>>(const QDBusArgument &argument, DBusAtom &atom) {
 	argument.beginStructure();
-	argument >> atom.relation >> atom.params;
+	argument >> atom.relation >> atom.params >> atom.value;
 	argument.endStructure();
 	return argument;
 }
@@ -100,9 +100,12 @@ void MasterAdaptor::StartPlanning(const QStringList& constants, const DBusState&
 	// Add state
 	for (DBusState::const_iterator it = state.begin(); it != state.end(); ++it) {
 		const QString& relationName(it->relation);
+		State& state(problem.state);
 		const AbstractFunction* function(master->getDomain().getRelation(relationName.toStdString()));
-		// FIXME: how to add generic deselialization, string ?
-		//problem.state.insert(Atom(relation, fromDBusParams(it->params)));
+		State::AbstractFunctionState*& functionState = state.functions[function];
+		if (functionState == 0)
+			functionState = function->createFunctionState();
+		functionState->insert(fromDBusParams(it->params), it->value.toStdString());
 	}
 	
 	// Add initial task
