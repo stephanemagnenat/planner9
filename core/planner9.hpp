@@ -40,6 +40,9 @@ protected:
 	virtual void success(const Plan& plan) = 0;
 
 private:
+	typedef std::pair<Substitution, CNF> Grounding;
+	typedef std::vector<Grounding> Groundings;
+	Groundings ground(const VariablesSet& variables, const CNF& preconditions, const State& state, size_t allocatedVariablesCount);
 	void visitNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 
 protected:

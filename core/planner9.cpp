@@ -42,20 +42,136 @@ Planner9::Planner9(const Scope& problemScope, std::ostream* debugStream):
 	if (debugStream) *debugStream << Scope::setScope(this->problemScope); 
 }
 
+Planner9::Groundings Planner9::ground(const VariablesSet& affectedVariables, const CNF& preconditions, const State& state, size_t allocatedVariablesCount) {
+	// create a list of affected variables along with their ranges, set their range to maximum
+	VariablesRanges variablesRanges;
+	for (VariablesSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
+		const Variable& variable = *it;
+		variablesRanges[variable] = VariableRange(problemScope.getSize(), true);
+	}
+
+	// filter out variables ranges using state
+	for(CNF::const_iterator it = preconditions.begin(); it != preconditions.end(); ++it) {
+		VariablesRanges clauseRanges;
+		for(CNF::Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
+			const Literal& literal = *jt;
+			const Atom& atom = literal.atom;
+			VariablesRanges atomRanges(atom.getRange(state, problemScope.getSize()));
+			// extend range of variables if it is to be grounded
+			for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
+				const Variable& variable = kt->first;
+				// TODO: optimize this with an index check
+				if (affectedVariables.find(variable) != affectedVariables.end()) {
+					VariableRange& paramRange = kt->second;
+					if(literal.negated)
+						~paramRange;
+					VariablesRanges::iterator clauseRangesIt = clauseRanges.find(variable);
+					if (clauseRangesIt != clauseRanges.end()) {
+						VariableRange& range = clauseRangesIt->second;
+						range |= paramRange;
+					} else {
+						clauseRanges[variable] = paramRange;
+					}
+				}
+			}
+		}
+
+		// filtered global ranges with ranges of this disjunction
+		for (VariablesRanges::const_iterator jt = clauseRanges.begin(); jt != clauseRanges.end(); ++jt) {
+			VariablesRanges::iterator variablesRangesIt = variablesRanges.find(jt->first);
+			if (variablesRangesIt != variablesRanges.end()) {
+				VariableRange& range = variablesRangesIt->second;
+				range &= jt->second;
+			} else {
+				assert(false);
+				variablesRanges[jt->first] = jt->second;
+			}
+		}
+	}
+
+	if (debugStream) {
+		*debugStream << "constants " << problemScope << std::endl;
+		*debugStream << "assigning";
+		for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
+			*debugStream << " var" << it->first.index - problemScope.getSize() << " " << it->second ;
+		}
+		*debugStream << std::endl;
+	}
+
+	// if any of the variable has no domain, return
+	for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
+		if (it->second.isEmpty()) {
+			return Groundings();
+		}
+	}
+
+	// DPLL (http://en.wikipedia.org/wiki/DPLL_algorithm)
+	Groundings groundings(1, std::make_pair(Substitution::identity(allocatedVariablesCount), preconditions));
+	for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end() && !groundings.empty(); ++it) {
+		const VariablesRanges::value_type& pair = *it;
+		const Variable& variable = pair.first;
+		const VariableRange& range = pair.second;
+		Groundings newGroundings;
+		for (Groundings::const_iterator kt = groundings.begin(); kt != groundings.end(); ++kt) {
+			const Substitution& subst(kt->first);
+			const CNF& pre(kt->second);
+			if(subst[variable.index] == variable) {
+				for (size_t jt = 0; jt < range.size(); ++jt) {
+					const bool isPossible = range[jt];
+					if (isPossible) {
+						Substitution newSubst(subst);
+						newSubst[variable.index] = Variable(jt);
+						CNF newPre(pre);
+						newPre.substitute(newSubst);
+						OptionalVariables simplificationResult = newPre.simplify(state, problemScope.getSize(), allocatedVariablesCount);
+						if (simplificationResult) {
+							newSubst.substitute(simplificationResult.get());
+							newGroundings.push_back(std::make_pair(newSubst, newPre));
+						}
+					}
+				}
+			} else {
+				newGroundings.push_back(*kt);
+			}
+		}
+		std::swap(groundings, newGroundings);
+	}
+	return groundings;
+}
+
 void Planner9::visitNode(const SearchNode* n) {
 	visitNode(n->plan, n->network, n->allocatedVariablesCount, n->cost, n->preconditions, n->state);
 }
 
-void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
+void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
 	// HTN: T0 ← {t ∈ T : no other task in T is constrained to precede t}
 	const TaskNetwork::Tasks& t0 = network.first;
 	
 	// HTN: if T = ∅ then return P
 	if (t0.empty()) {
-		assert(preconditions.empty());
-		// TODO: implement
-		if (debugStream) *debugStream << preconditions << std::endl;
-		success(plan);
+		// look into preconditions for all remaining variables
+		VariablesSet remainingVariables;
+		for (CNF::const_iterator it = preconditions.begin(); it != preconditions.end(); ++it) {
+			for(Clause::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
+				const Atom& atom(jt->atom);
+				for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
+					const Variable& variable = *kt;
+					if(variable.index >= problemScope.getSize())
+						remainingVariables.insert(variable);
+				}
+			}
+		}
+				
+		// ground remaining variables
+		Groundings groundings(ground(remainingVariables, preconditions, state, allocatedVariablesCount));
+
+		// Create plan with valid grounding
+		for (Groundings::iterator it = groundings.begin(); it != groundings.end(); ++it) {
+			Substitution& subst(it->first);
+			Plan assignedPlan(plan);
+			assignedPlan.substitute(subst);
+			success(assignedPlan);
+		}
 	}
 
 	// HTN: nondeterministically choose any t ∈ T0
@@ -126,102 +242,9 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, size_t al
 						}
 					}
 				}
-
-				// create a list of affected variables along with their ranges, set their range to maximum
-				VariablesRanges variablesRanges;
-				for (VariablesSet::const_iterator it = affectedVariables.begin(); it != affectedVariables.end(); ++it) {
-					const Variable& variable = *it;
-					variablesRanges[variable] = VariableRange(problemScope.getSize(), true);
-				}
-
-				// filter out variables ranges using state
-				for(CNF::iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
-					VariablesRanges clauseRanges;
-					for(CNF::Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
-						const Literal& literal = *jt;
-						const Atom& atom = literal.atom;
-						VariablesRanges atomRanges(atom.getRange(state, problemScope.getSize()));
-						// extend range of variables if it is to be grounded
-						for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
-							const Variable& variable = kt->first;
-							// TODO: optimize this with an index check
-							if (affectedVariables.find(variable) != affectedVariables.end()) {
-								VariableRange& paramRange = kt->second;
-								if(literal.negated)
-									~paramRange;
-								VariablesRanges::iterator clauseRangesIt = clauseRanges.find(variable);
-								if (clauseRangesIt != clauseRanges.end()) {
-									VariableRange& range = clauseRangesIt->second;
-									range |= paramRange;
-								} else {
-									clauseRanges[variable] = paramRange;
-								}
-							}
-						}
-					}
-
-					// filtered global ranges with ranges of this disjunction
-					for (VariablesRanges::const_iterator jt = clauseRanges.begin(); jt != clauseRanges.end(); ++jt) {
-						VariablesRanges::iterator variablesRangesIt = variablesRanges.find(jt->first);
-						if (variablesRangesIt != variablesRanges.end()) {
-							VariableRange& range = variablesRangesIt->second;
-							range &= jt->second;
-						} else {
-							assert(false);
-							variablesRanges[jt->first] = jt->second;
-						}
-					}
-				}
-
-				if (debugStream) {
-					*debugStream << "constants " << problemScope << std::endl;
-					*debugStream << "assigning";
-					for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
-						*debugStream << " var" << it->first.index - problemScope.getSize() << " " << it->second ;
-					}
-					*debugStream << std::endl;
-				}
-
-				// if any of the variable has no domain, return
-				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end(); ++it) {
-					if (it->second.isEmpty()) {
-						return;
-					}
-				}
-
-				// DPLL (http://en.wikipedia.org/wiki/DPLL_algorithm)
-				typedef std::pair<Substitution, CNF> Grounding;
-				typedef std::vector<Grounding> Groundings;
-				Groundings groundings(1, std::make_pair(Substitution::identity(newAllocatedVariablesCount), newPreconditions));
-				for(VariablesRanges::const_iterator it = variablesRanges.begin(); it != variablesRanges.end() && !groundings.empty(); ++it) {
-					const VariablesRanges::value_type& pair = *it;
-					const Variable& variable = pair.first;
-					const VariableRange& range = pair.second;
-					Groundings newGroundings;
-					for (Groundings::const_iterator kt = groundings.begin(); kt != groundings.end(); ++kt) {
-						const Substitution& subst(kt->first);
-						const CNF& pre(kt->second);
-						if(subst[variable.index] == variable) {
-							for (size_t jt = 0; jt < range.size(); ++jt) {
-								const bool isPossible = range[jt];
-								if (isPossible) {
-									Substitution newSubst(subst);
-									newSubst[variable.index] = Variable(jt);
-									CNF newPre(pre);
-									newPre.substitute(newSubst);
-									OptionalVariables simplificationResult = newPre.simplify(state, problemScope.getSize(), newAllocatedVariablesCount);
-									if (simplificationResult) {
-										newSubst.substitute(simplificationResult.get());
-										newGroundings.push_back(std::make_pair(newSubst, newPre));
-									}
-								}
-							}
-						} else {
-							newGroundings.push_back(*kt);
-						}
-					}
-					std::swap(groundings, newGroundings);
-				}
+				
+				// ground affected variables
+				Groundings groundings(ground(affectedVariables, newPreconditions, state, newAllocatedVariablesCount));
 
 				// Create new nodes with valid groundings
 				for (Groundings::iterator it = groundings.begin(); it != groundings.end(); ++it) {
