@@ -12,10 +12,15 @@ struct Serializer;
 
 struct State {
 	struct AbstractFunctionState {
+		virtual ~AbstractFunctionState() {}
+		
+		virtual AbstractFunctionState* clone() const = 0;
+		
 		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) = 0;
 		
 		virtual void serialize(Serializer& serializer) const = 0;
 		virtual void deserialize(Serializer& serializer, size_t arity) = 0;
+		
 	};
 	
 	template<typename ValueType>
@@ -23,7 +28,11 @@ struct State {
 		typedef std::map<Variables, ValueType> Values;
 		Values values;
 		
-		void dump(std::ostream& os, bool& first, const std::string& functionName) {
+		virtual AbstractFunctionState* clone() const {
+			return new FunctionState<ValueType>(*this);
+		}
+		
+		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) {
 			for (typename Values::const_iterator it = values.begin(); it != values.end(); ++it) {
 				if(first) {
 					first = false;
@@ -43,6 +52,10 @@ struct State {
 	typedef std::map<const AbstractFunction*, AbstractFunctionState*> Functions;
 	typedef std::pair<const AbstractFunction*, AbstractFunctionState*> FunctionsEntry;
 	Functions functions;
+	
+	State();
+	State(const State& that);
+	~State();
 	
 	// params must be in global scope
 	template<typename ValueType>

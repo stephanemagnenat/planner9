@@ -6,7 +6,7 @@
 #include "../core/relations.hpp"
 
 
-struct MyDomain {
+struct MyDomain: Domain {
 
 	Relation jug;
 	Function<int> amount;
@@ -17,14 +17,14 @@ struct MyDomain {
 
 	MyDomain();
 
-	bool checkCapacity(int capacityJug2, int amountJug2, int amoutJug1);
+	static bool checkCapacity(int capacityJug2, int amountJug2, int amoutJug1);
 };
 
 // (defdomain basic (
 MyDomain::MyDomain() :
-	jug(this, "jug", 1), 
-	amount(this, "amount"), 
-	capacity(this, "capacity"),
+	jug("jug", 1), 
+	amount("amount", 1), 
+	capacity("capacity", 1),
 	pour(this, "pour"),
 	pourAny(this, "pourAny") {
 
@@ -40,9 +40,10 @@ MyDomain::MyDomain() :
 	pour.pre(
 		jug("jug1") &&
 		jug("jug2") &&
-		call(checkCapacity, capacity("jug2"), amount("jug2"), amount("jug1"))
+		!equals("jug1", "jug2") &&
+		call<bool, int, int, int>(checkCapacity, capacity("jug2"), amount("jug2"), amount("jug1"))
 	);
-	pour.assign(amount("jug2"), amount("jug2") + amount("jug1"));
+	pour.assign(amount("jug2"), call<int, int, int>(std::plus<int>(), amount("jug2"), amount("jug1")));
 	pour.assign(amount("jug1"), 0);
 
 	pourAny.alternative(
@@ -53,9 +54,9 @@ MyDomain::MyDomain() :
 	);
 }
 
-bool MyDomain::checkCapacity(int capacityJug2, int amountJug2, int amoutJug1)
+bool MyDomain::checkCapacity(int capacityJug2, int amountJug2, int amountJug1)
 {
-	return capacityJug2 - amountJug2 >= amountJug1;
+	return amountJug1 > 0 && capacityJug2 - amountJug2 >= amountJug1;
 }
 
 struct MyProblem: MyDomain, Problem {
@@ -64,12 +65,12 @@ struct MyProblem: MyDomain, Problem {
 		add(jug("j1"));
 		add(jug("j2"));
 		add(jug("j3"));
-		add(amount(2,"j1"));
-		add(amount(10,"j2"));
-		add(amount(18,"j3"));
-		add(capacity(20,"j1"));
-		add(capacity(20,"j2"));
-		add(capacity(18,"j3"));
+		add(amount("j1"), 2);
+		add(amount("j2"), 10);
+		add(amount("j3"), 18);
+		add(capacity("j1"), 2);
+		add(capacity("j2"), 20);
+		add(capacity("j3"), 30);
 		goal(pourAny() >> pourAny());
 	}
 

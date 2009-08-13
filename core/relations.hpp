@@ -19,6 +19,7 @@
 #include <boost/fusion/include/as_vector.hpp>
 #include <boost/mpl/pop_front.hpp>
 #include <boost/cast.hpp>
+#include <boost/units/detail/utility.hpp>
 
 namespace mpl = boost::mpl;
 namespace fusion = boost::fusion;
@@ -110,33 +111,44 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 	BoostUserFunction userFunction;
 	Lookups lookups;
 
-	// TODO: in a way, get the domain to be able to store this relations
 	CallFunction(const BoostUserFunction& userFunction, Lookups lookups) :
-		Function<ResultType>(typeid(userFunction).name(), BoostUserFunction::arity),
+		Function<ResultType>(boost::units::detail::demangle(typeid(UserFunction).name()), BoostUserFunction::arity),
 		userFunction(userFunction),
 		lookups(lookups) {
 	}
 
 	struct LookupArg {
-		Variables::const_iterator it;
+		Variables::const_iterator& it;
 		const State& state;
 
-		LookupArg(const Variables& params, const State& state) :
-			it(params.begin()),
+		LookupArg(Variables::const_iterator& it, const State& state) :
+			it(it),
 			state(state) {
 		}
 
 		template<typename ArgType>
-		ArgType operator()(const Lookup<ArgType>& lookup) {
+		ArgType operator()(const Lookup<ArgType>& lookup) const {
 			Variables::const_iterator begin(it), end(it + lookup.function->arity);
-			ArgType arg = lookup.function.get(Variables(begin, end), state);
+			Variables params;
+			params.insert(params.begin(), begin, end);
+			ArgType arg = lookup.function->get(params, state);
 			it = end;
 			return arg;
 		}
+		
+		template<typename T>
+		struct result {
+		};
+		
+		template<typename ArgType>
+		struct result<LookupArg(const Lookup<ArgType>&)> {
+			typedef ArgType type;
+		};
 	};
 
 	virtual ResultType get(const Variables& params, const State& state) const {
-		LookupArg functor(params, state);
+		Variables::const_iterator it(params.begin());
+		LookupArg functor(it, state);
 		
 		// create a fusion sequence for the arguments
 		UserFunctionArgs args(fusion::transform(lookups, functor));
@@ -149,10 +161,6 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 		assert(false);
 	}
 };
-
-/*struct BooleanRelationStorage {
-	operator bool () const { return true; }
-};*/
 
 struct Relation: Function<bool> {
 	Relation(const std::string& name, size_t arity);

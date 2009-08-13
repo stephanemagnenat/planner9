@@ -22,7 +22,7 @@ struct Problem {
 	}
 	
 	void add(const ScopedLookup<bool>& scopedLookup) {
-		add<bool>(scopedLookup, true);
+		add(scopedLookup, true);
 	}
 
 	void goal(const ScopedTaskNetwork& goal);

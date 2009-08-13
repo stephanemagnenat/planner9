@@ -12,6 +12,7 @@
 #include <boost/function.hpp>
 #include <boost/fusion/container/generation/make_vector.hpp>
 #include <boost/fusion/include/make_vector.hpp>
+#include <boost/lambda/lambda.hpp>
 
 typedef int Cost;
 
@@ -50,6 +51,82 @@ private:
 	RelationsReverseMap relationsReverseMap;
 };
 
+struct CallFusion {
+	Scope& scope;
+	Variables& variables;
+	
+	CallFusion(Scope& scope, Variables& variables):
+		scope(scope), variables(variables) {
+	}
+
+	template<typename ArgType>
+	Lookup<ArgType> operator()(const ScopedLookup<ArgType>& arg) const {
+		Lookup<ArgType> lookup(arg.lookup);
+		Substitution subst(scope.merge(arg.scope));
+		lookup.substitute(subst);
+		variables.insert(variables.end(), lookup.params.begin(), lookup.params.end());
+		return lookup;
+	}
+
+	template<typename T>
+	struct result {
+	};
+	
+	template<typename ArgType>
+	struct result<CallFusion(const ScopedLookup<ArgType>&)> {
+		typedef Lookup<ArgType> type;
+	};
+};
+
+template<typename UserFunction, typename ScopedArguments>
+ScopedLookup<typename boost::function<UserFunction>::result_type>
+callFusion(const boost::function<UserFunction>& userFunction, const ScopedArguments& arguments) {
+	typedef CallFunction<UserFunction> Function;
+	typedef typename Function::ResultType FunctionResult;
+	typedef ScopedLookup<FunctionResult> ReturnScopeLookup;
+	typedef Lookup<FunctionResult> Lookup;
+	
+	//BOOST_MPL_ASSERT(( boost::is_same<typename Function::Lookups, ScopedArguments>));
+	
+	Scope scope;
+	Variables variables;
+	CallFusion callFusion(scope, variables);
+	typename Function::Lookups lookups(fusion::transform(arguments, callFusion));
+	const Function* function(new Function(userFunction, lookups));
+	return ReturnScopeLookup(scope, Lookup(function, variables));
+}
+
+template<typename ResultType>
+ScopedLookup<ResultType>
+call(const boost::function<ResultType()>& userFunction) {
+	return callFusion(userFunction, fusion::make_vector());
+}
+
+template<typename ResultType, typename Arg1Type>
+ScopedLookup<ResultType>
+call(const boost::function<ResultType(Arg1Type)>& userFunction,
+	const ScopedLookup<Arg1Type>& arg1) {
+	return callFusion(userFunction, fusion::make_vector(arg1));
+}
+
+template<typename ResultType, typename Arg1Type, typename Arg2Type>
+ScopedLookup<ResultType>
+call(const boost::function<ResultType(Arg1Type, Arg2Type)>& userFunction,
+	const ScopedLookup<Arg1Type>& arg1,
+	const ScopedLookup<Arg2Type>& arg2) {
+	return callFusion(userFunction, fusion::make_vector(arg1, arg2));
+}
+
+template<typename ResultType, typename Arg1Type, typename Arg2Type, typename Arg3Type>
+ScopedLookup<ResultType>
+call(const boost::function<ResultType(Arg1Type, Arg2Type, Arg3Type)>& userFunction,
+	const ScopedLookup<Arg1Type>& arg1,
+	const ScopedLookup<Arg2Type>& arg2,
+	const ScopedLookup<Arg3Type>& arg3) {
+	return callFusion(userFunction, fusion::make_vector(arg1, arg2, arg3));
+}
+
+
 struct Head {
 
 	Head(Domain* domain, const std::string& name);
@@ -57,6 +134,7 @@ struct Head {
 
 	void param(const std::string& name);
 
+	ScopedTaskNetwork operator()() const;
 	ScopedTaskNetwork operator()(const char* first, ...) const;
 
 	const std::string name;
@@ -88,6 +166,7 @@ struct Action: Head {
 
 	struct AbstractEffect {
 		virtual ~AbstractEffect() {}
+		virtual AbstractEffect* clone() const = 0;
 		virtual void apply(const State& state, State& newState, const Substitution subst) const = 0;
 		virtual void substitute(const Substitution& subst) = 0;
 		virtual void updateAffectedFunctionsAndVariables(FunctionsSet& affectedFunctions, VariablesSet& affectedVariables, const size_t constantsCount) const = 0;
@@ -103,10 +182,18 @@ struct Action: Head {
 			right(right) {
 		}
 		
+		virtual AbstractEffect* clone() const {
+			return new Effect<ValueType>(*this);
+		}
+		
 		virtual void apply(const State& state, State& newState, const Substitution subst) const {
-			Effect effect(*this);
-			effect.substitute(subst);
-			left.function->set(left.params, newState, right.function->get(right.params, state));
+			Variables leftParams(left.params);
+			Variables rightParams(right.params);
+			
+			leftParams.substitute(subst);
+			rightParams.substitute(subst);
+			
+			left.function->set(leftParams, newState, right.function->get(rightParams, state));
 		}
 		
 		virtual void substitute(const Substitution& subst) {
@@ -132,6 +219,9 @@ struct Action: Head {
 	};
 
 	struct Effects:public std::vector<AbstractEffect*>  {
+		Effects() {}
+		Effects(const Effects& that);
+		~Effects();
 		State apply(const State& state, const Substitution subst) const;
 		void substitute(const Substitution& subst);
 		void updateAffectedFunctionsAndVariables(FunctionsSet& affectedFunctions, VariablesSet& affectedVariables, const size_t constantsCount) const;
@@ -140,8 +230,6 @@ struct Action: Head {
 	const Scope& getScope() const { return scope; }
 	const CNF& getPrecondition() const { return precondition; }
 	const Effects& getEffects() const { return effects; }
-
-protected:
 
 	template<typename ValueType>
 	void assign(const ScopedLookup<ValueType>& left, const ScopedLookup<ValueType>& right) {
@@ -152,14 +240,17 @@ protected:
 		
 		const Substitution leftSubst(scope.merge(left.scope));
 		leftLookup.substitute(leftSubst);
-		rightLookup.substitute(leftSubst);
 		const Substitution rightSubst(scope.merge(right.scope));
-		leftLookup.substitute(rightSubst);
 		rightLookup.substitute(rightSubst);
 		
 		domain->registerFunction(leftLookup.function);
 		domain->registerFunction(rightLookup.function);
 		effects.push_back(new Effect<ValueType>(leftLookup, rightLookup));
+	}
+	
+	template<typename ValueType>
+	void assign(const ScopedLookup<ValueType>& left, const ValueType& rightValue) {
+		assign(left, call<ValueType>(boost::lambda::constant(rightValue)));
 	}
 
 private:
@@ -195,54 +286,5 @@ struct Method: Head {
 	friend std::ostream& operator<<(std::ostream& os, const Method& method);
 
 };
-
-struct CallFusion {
-	Variables variables;
-	Scope scope;
-
-	template<typename ArgType>
-	Lookup<ArgType> operator()(const ScopedLookup<ArgType>& arg) {
-		Lookup<ArgType> lookup(arg.lookup);
-		Substitution subst(scope.merge(lookup.params));
-		lookup.substitute(subst);
-		variables.insert(variables.end(), lookup.params.begin(), lookup.params.end());
-		return lookup;
-	}
-};
-
-template<typename UserFunction, typename ScopedArguments>
-ScopedLookup<typename boost::function<UserFunction>::result_type>
-callFusion(const boost::function<UserFunction>& userFunction, const ScopedArguments& arguments) {
-	typedef CallFunction<UserFunction> Function;
-	typedef typename Function::ResultType FunctionResult;
-	typedef ScopedLookup<FunctionResult> ReturnScopeLookup;
-	typedef Lookup<FunctionResult> Lookup;
-	
-	CallFusion callFusion;
-	typename Function::Lookups lookups(boost::fusion::transform(arguments, callFusion));
-	const Function* function(new Function(userFunction, lookups));
-	return ReturnScopeLookup(callFusion.scope, Lookup(function, callFusion.variables));
-}
-
-template<typename ResultType>
-ScopedLookup<ResultType>
-call(const boost::function<ResultType()>& userFunction) {
-	return callFusion(userFunction, fusion::make_vector());
-}
-
-template<typename ResultType, typename Arg1Type>
-ScopedLookup<ResultType>
-call(const boost::function<ResultType(Arg1Type)>& userFunction,
-	const ScopedLookup<Arg1Type>& arg1) {
-	return callFusion(userFunction, fusion::make_vector(arg1));
-}
-
-template<typename ResultType, typename Arg1Type, typename Arg2Type>
-ScopedLookup<ResultType>
-call(const boost::function<ResultType(Arg1Type, Arg2Type)>& userFunction,
-	const ScopedLookup<Arg1Type>& arg1,
-	const ScopedLookup<Arg2Type>& arg2) {
-	return callFusion(userFunction, fusion::make_vector(arg1, arg2));
-}
 
 #endif // DOMAIN_HPP_

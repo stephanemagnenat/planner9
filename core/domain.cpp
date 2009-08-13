@@ -110,6 +110,18 @@ void Head::param(const std::string& name) {
 	}
 }
 
+ScopedTaskNetwork Head::operator()() const {
+	Scope scope;
+	Variables variables = Variables();
+
+	TaskNetwork::Node* node = new TaskNetwork::Node(Task(this, variables));
+
+	TaskNetwork network;
+	network.first.push_back(node);
+
+	return ScopedTaskNetwork(scope, network);
+}
+
 ScopedTaskNetwork Head::operator()(const char* first, ...) const {
 	Scope::Names names;
 	names.push_back(first);
@@ -170,10 +182,21 @@ void Action::add(const ScopedLookup<bool>& scopedLookup) {
 }
 
 void Action::del(const ScopedLookup<bool>& scopedLookup) {
-	assign(scopedLookup, ScopedLookup<bool>(call<bool>(ReturnTrue)));
+	assign(scopedLookup, ScopedLookup<bool>(call<bool>(ReturnFalse)));
 }
 
 
+Action::Effects::Effects(const Effects& that) {
+	for (const_iterator it = that.begin(); it != that.end(); ++it) {
+		push_back((*it)->clone());
+	}
+}
+
+Action::Effects::~Effects() {
+	for (const_iterator it = begin(); it != end(); ++it) {
+		delete *it;
+	}
+}
 
 State Action::Effects::apply(const State& state, const Substitution subst) const {
 	State newState(state);

@@ -11,7 +11,7 @@
 // This extremely simple example shows some of the most essential
 // features of SHOP2.
 
-struct MyDomain {
+struct MyDomain: Domain {
 
 	Relation have;
 	Relation provide;
@@ -26,7 +26,12 @@ struct MyDomain {
 
 // (defdomain basic (
 MyDomain::MyDomain() :
-	have("have", 1), provide("provide", 2), pickup("pickup"), drop("drop"), swap("swap"), trocFor("trocFor") {
+	have("have", 1), 
+	provide("provide", 2), 
+	pickup(this, "pickup"), 
+	drop(this, "drop"), 
+	swap(this, "swap"), 
+	trocFor(this, "trocFor") {
 
 	// (:operator (!pickup ?a) () () ((have ?a)))
 	pickup.param("a");
@@ -46,11 +51,11 @@ MyDomain::MyDomain() :
 	 */
 	swap.param("x");
 	swap.param("y");
-	swap.alternative(have("x") && !have("y"), drop("x") >> pickup("y"));
-	swap.alternative(have("y") && !have("x"), drop("y") >> pickup("x"));
+	swap.alternative("swap ltr", have("x") && !have("y"), drop("x") >> pickup("y"));
+	swap.alternative("swap rtl", have("y") && !have("x"), drop("y") >> pickup("x"));
 
 	trocFor.param("x");
-	trocFor.alternative(have("y") && !have("x") && provide("p", "x"), swap("x", "y"));
+	trocFor.alternative("trocFor", have("y") && !have("x") && provide("p", "x"), swap("x", "y"));
 }
 
 struct MyProblem: MyDomain, Problem {
