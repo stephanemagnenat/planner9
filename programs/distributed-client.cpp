@@ -172,6 +172,32 @@ quint16 getIndex(const QString& s) {
 	 (isIn ext3 a2)
 )
 (rescue a5)
+
+// for numeric rescue
+
+(
+	 (robots r0)
+	 (robots r1)
+	 (area a0)
+	 (area a1)
+	 (area a2)
+	 (area a3)
+	 (area a4)
+	 (area a5)
+	 (isAdjacent a0 a1)
+	 (isAdjacent a0 a3)
+	 (isAdjacent a1 a2)
+	 (isAdjacent a1 a3)
+	 (isAdjacent a1 a4)
+	 (isAdjacent a4 a5)
+	 (isIn r0 a0)
+	 (isIn r1 a1)
+	 (medkit a0 = 1)
+	 (extinguisher a0 = 1)
+	 (extinguisher a1 = 1)
+	 (extinguisher a2 = 2)
+)
+(rescue a5)
   
   */
 
@@ -195,19 +221,34 @@ int main(int argc, char* argv[]) {
 		input >> word;
 		entry.function = word;
 		input >> word;
+		bool equalsFound(false);
 		while (!word.endsWith(')')) {
-			QStringList list(word.split("="));
-			entry.params.push_back(getIndex(list.at(0)));
-			if (list.size() > 1)
-				entry.value = list.at(1);
+			QStringList list(word.split("=", QString::SkipEmptyParts));
+			if (!list.empty()) {
+				if (!equalsFound) {
+					entry.params.push_back(getIndex(list.at(0)));
+					if (list.size() > 1)
+						entry.value = list.at(1);
+				} else {
+					entry.value = list.at(0);
+				}
+			}
+			equalsFound = word.contains("=") || equalsFound;
 			input >> word;
 		}
 		if (word.size() > 1) {
 			word.chop(1);
-			QStringList list(word.split("="));
-			entry.params.push_back(getIndex(list.at(0)));
-			if (list.size() > 1)
-				entry.value = list.at(1);
+			QStringList list(word.split("=", QString::SkipEmptyParts));
+			if (!list.empty()) {
+				if (!equalsFound) {
+					entry.params.push_back(getIndex(list.at(0)));
+					if (list.size() > 1)
+						entry.value = list.at(1);
+				} else {
+					entry.value = list.at(0);
+				}
+			}
+			equalsFound = word.contains("=") || equalsFound;
 		}
 		state.push_back(entry);
 	}

@@ -100,12 +100,17 @@ void MasterAdaptor::StartPlanning(const QStringList& constants, const DBusState&
 	// Add state
 	for (DBusState::const_iterator it = state.begin(); it != state.end(); ++it) {
 		const QString& relationName(it->relation);
+		qDebug() << it->relation <<  it->params << it->value;
 		State& state(problem.state);
 		const AbstractFunction* function(master->getDomain().getRelation(relationName.toStdString()));
-		State::AbstractFunctionState*& functionState = state.functions[function];
-		if (functionState == 0)
-			functionState = function->createFunctionState();
-		functionState->insert(fromDBusParams(it->params), it->value.toStdString());
+		if (function) {
+			State::AbstractFunctionState*& functionState = state.functions[function];
+			if (functionState == 0)
+				functionState = function->createFunctionState();
+			functionState->insert(fromDBusParams(it->params), it->value.toStdString());
+		} else {
+			std::cerr << "The domain does use any function named " << relationName.toStdString() << ", ignoring state entry" << std::endl;
+		}
 	}
 	
 	// Add initial task

@@ -19,7 +19,7 @@ struct Proposition: Expression<bool> {
 	virtual CNF cnf() const = 0;
 	virtual DNF dnf() const = 0;
 	virtual void substitute(const Substitution& subst) = 0;
-	virtual void registerFunctions(Domain* domain) = 0;
+	virtual void registerFunctions(Domain* domain) const = 0;
 
 };
 
@@ -35,7 +35,7 @@ struct Atom: Proposition {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 	
 	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const;
 	VariablesRanges getRange(const State& state, const size_t constantsCount) const;
@@ -57,7 +57,7 @@ struct Not: Proposition {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 
 	Proposition *const proposition;
 
@@ -74,7 +74,7 @@ struct Or: Proposition {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 
 	Propositions propositions;
 
@@ -91,7 +91,7 @@ struct And: Proposition {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 
 	Propositions propositions;
 
@@ -106,7 +106,7 @@ struct Literal: Proposition {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const Literal& literal);
 
@@ -125,7 +125,7 @@ struct Clause: Proposition, std::vector<Literal> {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 
 };
 
@@ -140,7 +140,7 @@ struct CNF: Proposition, std::vector<Clause> {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 	
 	OptionalVariables simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd);
 
@@ -161,7 +161,7 @@ struct DNF: Proposition, std::vector<std::vector<Literal> > {
 	CNF cnf() const;
 	DNF dnf() const;
 	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain);
+	void registerFunctions(Domain* domain) const;
 
 	void operator+=(const DNF& that);
 

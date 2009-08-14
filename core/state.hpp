@@ -41,7 +41,7 @@ struct State {
 		}
 		
 		virtual void insert(const Variables& params, const std::string& value) {
-			if (value.empty()) {
+			if (!value.empty()) {
 				ValueType v;
 				std::istringstream iss(value);
 				iss >> v;

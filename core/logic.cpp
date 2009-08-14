@@ -46,7 +46,7 @@ void Atom::substitute(const Substitution& subst) {
 	params.substitute(subst);
 }
 
-void Atom::registerFunctions(Domain* domain) {
+void Atom::registerFunctions(Domain* domain) const {
 	domain->registerFunction(function);
 }
 
@@ -124,7 +124,7 @@ void Not::substitute(const Substitution& subst) {
 	proposition->substitute(subst);
 }
 
-void Not::registerFunctions(Domain* domain) {
+void Not::registerFunctions(Domain* domain) const {
 	proposition->registerFunctions(domain);
 }
 
@@ -170,9 +170,9 @@ void Or::substitute(const Substitution& subst) {
 	}
 }
 
-void Or::registerFunctions(Domain* domain) {
-	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
-		Proposition* proposition(*it);
+void Or::registerFunctions(Domain* domain) const {
+	for(Propositions::const_iterator it = propositions.begin(); it != propositions.end(); ++it) {
+		const Proposition* proposition(*it);
 		proposition->registerFunctions(domain);
 	}
 }
@@ -218,9 +218,9 @@ void And::substitute(const Substitution& subst) {
 	}
 }
 
-void And::registerFunctions(Domain* domain) {
-	for(Propositions::iterator it = propositions.begin(); it != propositions.end(); ++it) {
-		Proposition* proposition(*it);
+void And::registerFunctions(Domain* domain) const {
+	for(Propositions::const_iterator it = propositions.begin(); it != propositions.end(); ++it) {
+		const Proposition* proposition(*it);
 		proposition->registerFunctions(domain);
 	}
 }
@@ -249,7 +249,7 @@ void Literal::substitute(const Substitution& subst) {
 	atom.substitute(subst);
 }
 
-void Literal::registerFunctions(Domain* domain) {
+void Literal::registerFunctions(Domain* domain) const {
 	atom.registerFunctions(domain);
 }
 
@@ -290,8 +290,8 @@ void Clause::substitute(const Substitution& subst) {
 	}
 }
 
-void Clause::registerFunctions(Domain* domain) {
-	for(iterator it = begin(); it != end(); ++it) {
+void Clause::registerFunctions(Domain* domain) const {
+	for(const_iterator it = begin(); it != end(); ++it) {
 		it->registerFunctions(domain);
 	}
 }
@@ -401,9 +401,9 @@ void CNF::substitute(const Substitution& subst) {
 	}
 }
 
-void CNF::registerFunctions(Domain* domain) {
-	for(iterator it = begin(); it != end(); ++it) {
-		for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+void CNF::registerFunctions(Domain* domain) const {
+	for(const_iterator it = begin(); it != end(); ++it) {
+		for(Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
 			jt->registerFunctions(domain);
 		}
 	}
@@ -484,9 +484,9 @@ void DNF::substitute(const Substitution& subst) {
 	}
 }
 
-void DNF::registerFunctions(Domain* domain) {
-	for(iterator it = begin(); it != end(); ++it) {
-		for(Conjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
+void DNF::registerFunctions(Domain* domain) const {
+	for(const_iterator it = begin(); it != end(); ++it) {
+		for(Conjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
 			jt->registerFunctions(domain);
 		}
 	}

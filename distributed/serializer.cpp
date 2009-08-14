@@ -27,8 +27,8 @@ void State::FunctionState<ValueType>::deserialize(Serializer& serializer, size_t
 	}
 }
 
-struct State::FunctionState<float>;
-struct State::FunctionState<int>;
+template struct State::FunctionState<float>;
+template struct State::FunctionState<int>;
 
 template<>
 void State::FunctionState<bool>::serialize(Serializer& serializer) const {
@@ -100,6 +100,7 @@ void Serializer::write(const Plan& plan) {
 
 template<>
 void Serializer::write(const Atom& atom) {
+	assert(domain.getRelationIndex(atom.function) != (size_t)-1);
 	write<quint16>(domain.getRelationIndex(atom.function));
 	for (Variables::const_iterator it = atom.params.begin(); it != atom.params.end(); ++it)
 		write<quint16>(it->index);
@@ -217,7 +218,9 @@ Plan Serializer::read() {
 
 template<>
 Atom Serializer::read() {
-	const Atom::BoolFunction* relation(boost::polymorphic_downcast<const Atom::BoolFunction*>(domain.getRelation(read<quint16>())));
+	const quint16 relationIndex(read<quint16>());
+	const Atom::BoolFunction* relation(boost::polymorphic_downcast<const Atom::BoolFunction*>(domain.getRelation(relationIndex)));
+	assert(relation);
 	Variables variables;
 	variables.reserve(relation->arity);
 	for (size_t i = 0; i < relation->arity; ++i)

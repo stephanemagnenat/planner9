@@ -26,7 +26,7 @@ MyDomain::MyDomain():
 	robots("robots", 1),
 	area("area", 1),
 	extinguisher("extinguisher", 1),
-	medkit("extinguisher", 1),
+	medkit("medkit", 1),
 	isAdjacent("isAdjacent"),
 	isConnected("isConnected"),
 	isIn("isIn", 2),

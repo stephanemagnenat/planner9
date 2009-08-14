@@ -85,7 +85,7 @@ void Domain::registerHead(const Head& head) {
 }
 
 void Domain::registerFunction(const AbstractFunction* function) {
-	if (relationsNamesMap.find(function->name) == relationsNamesMap.end()) {
+	if (relationsReverseMap.find(function) == relationsReverseMap.end()) {
 		relationsReverseMap[function] = relationsVector.size();
 		relationsNamesMap[function->name] = function;
 		relationsVector.push_back(function);
@@ -163,11 +163,13 @@ void Action::pre() {
 }
 
 void Action::pre(const ScopedProposition& precondition) {
-	scope.merge(paramsScope); // make sure we have all the params
+	// register functions
+	precondition.proposition->registerFunctions(domain);
+	// make sure we have all the params
+	scope.merge(paramsScope);
 	Substitution subst = scope.merge(precondition.scope);
 	this->precondition = precondition.proposition->cnf();
 	this->precondition.substitute(subst);
-	// TODO: register functions
 }
 
 bool ReturnFalse() {
@@ -246,6 +248,8 @@ Method::Method(Domain* domain, const std::string& name) :
 }
 
 void Method::alternative(const std::string& name, const ScopedProposition& precondition, const ScopedTaskNetwork& decomposition, Cost cost) {
+	// register functions
+	precondition.proposition->registerFunctions(domain);
 	CNF proposition = precondition.proposition->cnf();
 	TaskNetwork network(decomposition.getNetwork());
 
