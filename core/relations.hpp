@@ -50,6 +50,10 @@ struct Function : AbstractFunction {
 	Function(const std::string& name, size_t arity):
 		AbstractFunction(name, arity) {
 	}
+	
+	ScopedLookup<CoDomain> operator()() {
+		return ScopedLookup<CoDomain>(Scope(), Lookup<CoDomain>(this, Variables()));
+	}
 
 	ScopedLookup<CoDomain> operator()(const char* first, ...) {
 		Scope::Names names;

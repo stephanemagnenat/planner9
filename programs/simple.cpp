@@ -2,7 +2,8 @@
 
 //#include "../problems/jug-pouring.hpp"
 //#include "../problems/basic.hpp"
-#include "../problems/rescue-numeric.hpp"
+//#include "../problems/rescue-numeric.hpp"
+#include "../problems/tower-of-hanoi.hpp"
 //#include "../problems/robots.hpp"
 //#include "problems/rover.hpp"
 
