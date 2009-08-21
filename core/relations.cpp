@@ -11,9 +11,10 @@ Variables createParams(const Variable& p0, const Variable& p1) {
 	return params;
 }
 
-AbstractFunction::AbstractFunction(const std::string& name, size_t arity):
+AbstractFunction::AbstractFunction(const std::string& name, size_t arity, bool deleteWithDomain):
 	name(name),
-	arity(arity) {
+	arity(arity),
+	deleteWithDomain(deleteWithDomain) {
 }
 
 VariablesRanges AbstractFunction::getRange(const Variables& params, const State& state, const size_t constantsCount) const {

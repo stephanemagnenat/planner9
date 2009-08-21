@@ -87,40 +87,7 @@ struct And: Proposition {
 	Propositions propositions;
 
 };
-/*
-// TODO: make atom a pointer
-struct Literal: Proposition {
 
-	Literal(const Atom& atom, bool negated);
-
-	Literal* clone() const;
-	CNF cnf() const;
-	DNF dnf() const;
-	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain) const;
-
-	friend std::ostream& operator<<(std::ostream& os, const Literal& literal);
-
-	Atom atom;
-	bool negated;
-
-};
-*/
-/*
-// a disjunction of literals
-struct Clause: Proposition, std::vector<Literal> {
-
-	Clause();
-	Clause(const Literal& literal);
-
-	Clause* clone() const;
-	CNF cnf() const;
-	DNF dnf() const;
-	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain) const;
-
-};
-*/
 struct NormalForm: Proposition {
 	typedef Function<bool> BoolFunction;
 	struct Literal {

@@ -30,9 +30,9 @@ struct Domain;
 struct Atom;
 
 struct AbstractFunction {
-	AbstractFunction(const std::string& name, size_t arity);
+	AbstractFunction(const std::string& name, size_t arity, bool deleteWithDomain = false);
 	virtual ~AbstractFunction() {}
-
+	
 	virtual void groundIfUnique(const Variables& params, const State& state, const size_t constantsCount, Substitution& subst) const;
 	virtual VariablesRanges getRange(const Variables& params, const State& state, const size_t constantsCount) const;
 	
@@ -40,6 +40,7 @@ struct AbstractFunction {
 	
 	std::string name;
 	size_t arity;
+	bool deleteWithDomain;
 };
 
 typedef std::set<const AbstractFunction*> FunctionsSet;
@@ -47,8 +48,8 @@ typedef std::set<const AbstractFunction*> FunctionsSet;
 
 template<typename CoDomain>
 struct Function : AbstractFunction {	
-	Function(const std::string& name, size_t arity):
-		AbstractFunction(name, arity) {
+	Function(const std::string& name, size_t arity, bool deleteWithDomain = false):
+		AbstractFunction(name, arity, deleteWithDomain) {
 	}
 	
 	ScopedLookup<CoDomain> operator()() {
@@ -116,7 +117,7 @@ struct CallFunction: Function<typename boost::function<UserFunction>::result_typ
 	Lookups lookups;
 
 	CallFunction(const BoostUserFunction& userFunction, Lookups lookups) :
-		Function<ResultType>(boost::units::detail::demangle(typeid(UserFunction).name()), BoostUserFunction::arity),
+		Function<ResultType>(boost::units::detail::demangle(typeid(UserFunction).name()), BoostUserFunction::arity, true),
 		userFunction(userFunction),
 		lookups(lookups) {
 	}

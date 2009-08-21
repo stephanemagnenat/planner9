@@ -18,6 +18,7 @@ typedef int Cost;
 
 struct Domain {
 	Domain();
+	~Domain();
 
 public:
 	const Head* getHead(size_t index) const;

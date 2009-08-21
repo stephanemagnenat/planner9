@@ -31,6 +31,14 @@
 Domain::Domain() {
 }
 
+Domain::~Domain() {
+	for (RelationsVector::const_iterator it = relationsVector.begin(); it != relationsVector.end(); ++it) {
+		const AbstractFunction* function(*it);
+		if (function->deleteWithDomain)
+			delete function;
+	}
+}
+
 const Head* Domain::getHead(size_t index) const {
 	if (index < headsVector.size())
 		return headsVector[index];

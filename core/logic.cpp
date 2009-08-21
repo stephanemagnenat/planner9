@@ -7,17 +7,6 @@
 #include <boost/cast.hpp>
 namespace mpl = boost::mpl;
 
-/*
-Atom::Atom(const Atom& that) :
-	function(that.function),
-	params(that.params) {
-}
-
-Atom::Atom(const Lookup<bool>& that) :
-	function(that.function),
-	params(that.params) {
-}
-*/
 Atom::Atom(const BoolFunction* function, const Variables& params):
 	function(function),
 	params(params) {
@@ -56,35 +45,6 @@ void Atom::substitute(const Substitution& subst) {
 void Atom::registerFunctions(Domain* domain) const {
 	domain->registerFunction(function);
 }
-/*
-void Atom::groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const {
-	function->groundIfUnique(params, state, constantsCount, subst);
-}
-
-VariablesRanges Atom::getRange(const State& state, const size_t constantsCount) const {
-	return function->getRange(params, state, constantsCount);
-}
-
-bool Atom::isCheckable(const size_t constantsCount) const {
-	for (Variables::const_iterator it = params.begin(); it != params.end(); ++it) {
-	if (it->index >= constantsCount) {
-			return false;
-		}
-	}
-	return true;
-}
-
-bool Atom::check(const State& state) const {
-	return function->get(params, state);
-}
-
-std::ostream& operator<<(std::ostream& os, const Atom& atom) {
-	if (atom.function->name.empty() && atom.params.size() == 1)
-		return os << atom.params;
-	else
-		return os << atom.function->name << "(" << atom.params << ")";
-}
-*/
 
 
 Not::Not(Proposition* proposition):
