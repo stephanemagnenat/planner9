@@ -108,15 +108,23 @@ void Serializer::write(const Atom& atom) {
 
 template<>
 void Serializer::write(const CNF& cnf) {
-	write<quint16>(cnf.size());
-	for (CNF::const_iterator it = cnf.begin(); it != cnf.end(); ++it) {
-		const Clause& clause(*it);
-		write<quint16>(clause.size());
-		for (Clause::const_iterator jt = clause.begin(); jt != clause.end(); ++jt) {
-			const Literal& literal(*jt);
-			write(literal.atom);
-			write(literal.negated);
-		}
+	// write variables
+	write<quint16>(cnf.variables.size());
+	for (Variables::const_iterator it = cnf.variables.begin(); it != cnf.variables.end(); ++it) {
+		write<quint16>(it->index);
+	}
+	// write literals
+	write<quint16>(cnf.literals.size());
+	for (NormalForm::Literals::const_iterator it = cnf.literals.begin(); it != cnf.literals.end(); ++it) {
+		const NormalForm::Literal& literal(*it);
+		write<quint16>(domain.getRelationIndex(literal.function));
+		write<quint16>(literal.variables);
+		write<bool>(literal.negated);
+	}
+	// write junctions
+	write<quint16>(cnf.junctions.size());
+	for (NormalForm::Junctions::const_iterator it = cnf.junctions.begin(); it != cnf.junctions.end(); ++it) {
+		write<quint16>(*it);
 	}
 }
 
@@ -231,18 +239,28 @@ Atom Serializer::read() {
 template<>
 CNF Serializer::read() {
 	CNF cnf;
-	const size_t cnfSize(read<quint16>());
-	cnf.reserve(cnfSize);
-	for (size_t i = 0; i < cnfSize; ++i) {
-		Clause clause;
-		const size_t clauseSize(read<quint16>());
-		clause.reserve(clauseSize);
-		for (size_t j = 0; j < clauseSize; ++j) {
-			const Atom atom(read<Atom>());
-			const bool negated(read<bool>());
-			clause.push_back(Literal(atom, negated));
-		}
-		cnf.push_back(clause);
+	// read variables
+	const Variables::size_type variablesSize(read<quint16>());
+	cnf.variables.reserve(variablesSize);
+	for (Variables::size_type i = 0; i < variablesSize; ++i) {
+		cnf.variables.push_back(Variable(read<quint16>()));
+	}
+	// read literals
+	const NormalForm::Literals::size_type literalsSize(read<quint16>());
+	cnf.literals.reserve(literalsSize);
+	for (NormalForm::Literals::size_type i = 0; i < literalsSize; ++i) {
+		NormalForm::Literal literal;
+		const quint16 relationIndex(read<quint16>());
+		literal.function = boost::polymorphic_downcast<const Atom::BoolFunction*>(domain.getRelation(relationIndex));
+		literal.variables = read<quint16>();
+		literal.negated = read<bool>();
+		cnf.literals.push_back(literal);
+	}
+	// read junctions
+	const NormalForm::Junctions::size_type junctionsSize(read<quint16>());
+	cnf.junctions.reserve(junctionsSize);
+	for (NormalForm::Junctions::size_type i = 0; i < junctionsSize; ++i) {
+		cnf.junctions.push_back(read<quint16>());
 	}
 	return cnf;
 }

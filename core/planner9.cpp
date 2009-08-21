@@ -49,14 +49,18 @@ Planner9::Groundings Planner9::ground(const VariablesSet& affectedVariables, con
 		const Variable& variable = *it;
 		variablesRanges[variable] = VariableRange(problemScope.getSize(), true);
 	}
-
+	
 	// filter out variables ranges using state
-	for(CNF::const_iterator it = preconditions.begin(); it != preconditions.end(); ++it) {
+	for (NormalForm::Junctions::const_iterator it = preconditions.junctions.begin(); it != preconditions.junctions.end(); ++it) {
+		
+		// get range of this disjunction
 		VariablesRanges clauseRanges;
-		for(CNF::Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-			const Literal& literal = *jt;
-			const Atom& atom = literal.atom;
-			VariablesRanges atomRanges(atom.getRange(state, problemScope.getSize()));
+		const NormalForm::Literals::size_type junctionStart(*it);
+		const NormalForm::Literals::size_type junctionEnd(junctionStart + preconditions.junctionSize(it));
+		for (NormalForm::Literals::size_type jt = junctionStart; jt < junctionEnd; ++jt) {
+			const NormalForm::Literal& literal(preconditions.literals[jt]);
+			const Variables params(preconditions.getParams(literal));
+			VariablesRanges atomRanges(literal.function->getRange(params, state, problemScope.getSize()));
 			// extend range of variables if it is to be grounded
 			for (VariablesRanges::iterator kt = atomRanges.begin(); kt != atomRanges.end(); ++kt) {
 				const Variable& variable = kt->first;
@@ -75,7 +79,7 @@ Planner9::Groundings Planner9::ground(const VariablesSet& affectedVariables, con
 				}
 			}
 		}
-
+		
 		// filtered global ranges with ranges of this disjunction
 		for (VariablesRanges::const_iterator jt = clauseRanges.begin(); jt != clauseRanges.end(); ++jt) {
 			VariablesRanges::iterator variablesRangesIt = variablesRanges.find(jt->first);
@@ -149,17 +153,13 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 	
 	// HTN: if T = ∅ then return P
 	if (t0.empty()) {
+		
 		// look into preconditions for all remaining variables
 		VariablesSet remainingVariables;
-		for (CNF::const_iterator it = preconditions.begin(); it != preconditions.end(); ++it) {
-			for(Clause::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-				const Atom& atom(jt->atom);
-				for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
-					const Variable& variable = *kt;
-					if(variable.index >= problemScope.getSize())
-						remainingVariables.insert(variable);
-				}
-			}
+		for (Variables::const_iterator it = preconditions.variables.begin(); it != preconditions.variables.end(); ++it) {
+			const Variable& variable(*it);
+			if(variable.index >= problemScope.getSize())
+				remainingVariables.insert(variable);
 		}
 				
 		// ground remaining variables
@@ -229,16 +229,15 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 				effects.updateAffectedFunctionsAndVariables(affectedRelations, affectedVariables, problemScope.getSize());
 				
 				// then look into preconditions for all indirectly affected variables
-				for(CNF::const_iterator it = newPreconditions.begin(); it != newPreconditions.end(); ++it) {
-					for(Clause::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-						const Atom& atom(jt->atom);
-						if (affectedRelations.find(atom.function) != affectedRelations.end()) {
-							// the relation of this atom is affected, all its variables must be grounded
-							for (Variables::const_iterator kt = atom.params.begin(); kt != atom.params.end(); ++kt) {
-								const Variable& variable = *kt;
-								if(variable.index >= problemScope.getSize())
-									affectedVariables.insert(variable);
-							}
+				for(NormalForm::Literals::const_iterator it = newPreconditions.literals.begin(); it != newPreconditions.literals.end(); ++it) {
+					const NormalForm::Literal& literal(*it);
+					if (affectedRelations.find(literal.function) != affectedRelations.end()) {
+						// the relation of this literal is affected, all its variables must be grounded
+						const Variables params(newPreconditions.getParams(literal));
+						for (Variables::const_iterator kt = params.begin(); kt != params.end(); ++kt) {
+							const Variable& variable = *kt;
+							if(variable.index >= problemScope.getSize())
+								affectedVariables.insert(variable);
 						}
 					}
 				}

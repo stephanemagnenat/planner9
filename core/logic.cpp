@@ -7,6 +7,7 @@
 #include <boost/cast.hpp>
 namespace mpl = boost::mpl;
 
+/*
 Atom::Atom(const Atom& that) :
 	function(that.function),
 	params(that.params) {
@@ -16,7 +17,7 @@ Atom::Atom(const Lookup<bool>& that) :
 	function(that.function),
 	params(that.params) {
 }
-
+*/
 Atom::Atom(const BoolFunction* function, const Variables& params):
 	function(function),
 	params(params) {
@@ -30,15 +31,21 @@ Atom* Atom::clone() const {
 }
 
 CNF Atom::cnf() const {
-	const Literal literal(*this, false);
-	const Clause clause(literal);
-	return CNF(clause);
+	const NormalForm::Literal literal(function, false);
+	NormalForm::Junction junction;
+	junction.addLiteral(params, literal);
+	CNF cnf;
+	cnf.addJunction(junction);
+	return cnf;
 }
 
 DNF Atom::dnf() const {
-	const Literal literal(*this, false);
-	const DNF::Conjunction conjunction(1, literal);
-	return DNF(conjunction);
+	const NormalForm::Literal literal(function, false);
+	NormalForm::Junction junction;
+	junction.addLiteral(params, literal);
+	DNF dnf;
+	dnf.addJunction(junction);
+	return dnf;
 }
 
 
@@ -49,7 +56,7 @@ void Atom::substitute(const Substitution& subst) {
 void Atom::registerFunctions(Domain* domain) const {
 	domain->registerFunction(function);
 }
-
+/*
 void Atom::groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const {
 	function->groundIfUnique(params, state, constantsCount, subst);
 }
@@ -77,7 +84,7 @@ std::ostream& operator<<(std::ostream& os, const Atom& atom) {
 	else
 		return os << atom.function->name << "(" << atom.params << ")";
 }
-
+*/
 
 
 Not::Not(Proposition* proposition):
@@ -96,12 +103,11 @@ CNF Not::cnf() const {
 	// use de Morgan to create the CNF out of the DNF
 	const DNF dnf = proposition->dnf();
 	CNF cnf;
-	for(DNF::const_iterator it = dnf.begin(); it != dnf.end(); ++it) {
-		CNF::Disjunction dis;
-		for(DNF::Conjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-			dis.push_back(Literal(jt->atom, !jt->negated));
-		}
-		cnf.push_back(dis);
+	cnf.variables = dnf.variables;
+	cnf.literals = dnf.literals;
+	cnf.junctions = dnf.junctions;
+	for(NormalForm::Literals::iterator it = cnf.literals.begin(); it != cnf.literals.end(); ++it) {
+		it->negated = !it->negated;
 	}
 	return cnf;
 }
@@ -110,12 +116,11 @@ DNF Not::dnf() const {
 	// use de Morgan to create the DNF out of the CNF
 	const CNF cnf = proposition->cnf();
 	DNF dnf;
-	for(CNF::const_iterator it = cnf.begin(); it != cnf.end(); ++it) {
-		DNF::Conjunction con;
-		for(CNF::Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-			con.push_back(Literal(jt->atom, !jt->negated));
-		}
-		dnf.push_back(con);
+	dnf.variables = cnf.variables;
+	dnf.literals = cnf.literals;
+	dnf.junctions = cnf.junctions;
+	for(NormalForm::Literals::iterator it = dnf.literals.begin(); it != dnf.literals.end(); ++it) {
+		it->negated = !it->negated;
 	}
 	return dnf;
 }
@@ -226,83 +231,138 @@ void And::registerFunctions(Domain* domain) const {
 }
 
 
-Literal::Literal(const Atom& atom, bool negated):
-	atom(atom),
+NormalForm::Literal::Literal() {
+}
+
+NormalForm::Literal::Literal(const BoolFunction* function, const bool negated):
+	function(function),
+	variables(0),
 	negated(negated) {
 }
 
-Literal* Literal::clone() const {
-	return new Literal(*this);
+
+void NormalForm::substitute(const Substitution& subst) {
+	variables.substitute(subst);
 }
 
-CNF Literal::cnf() const {
-	const CNF::Disjunction disjunction(*this);
-	return CNF(disjunction);
-}
-
-DNF Literal::dnf() const {
-	const DNF::Conjunction conjunction(1, *this);
-	return DNF(conjunction);
-}
-
-void Literal::substitute(const Substitution& subst) {
-	atom.substitute(subst);
-}
-
-void Literal::registerFunctions(Domain* domain) const {
-	atom.registerFunctions(domain);
-}
-
-std::ostream& operator<<(std::ostream& os, const Literal& literal) {
-	if(literal.negated)
-		os << "!";
-	os << literal.atom;
-	return os;
-}
-
-
-Clause::Clause() {
-}
-
-Clause::Clause(const Literal& literal):
-	std::vector<Literal>(1, literal) {
-}
-
-Clause* Clause::clone() const {
-	return new Clause(*this);
-}
-
-CNF Clause::cnf() const {
-	return CNF(*this);
-}
-
-DNF Clause::dnf() const {
-	DNF dnf;
-	for(const_iterator it = begin(); it != end(); ++it) {
-		dnf.push_back(DNF::Conjunction(1, *it));
-	}
-	return dnf;
-}
-
-void Clause::substitute(const Substitution& subst) {
-	for(iterator it = begin(); it != end(); ++it) {
-		it->substitute(subst);
+void NormalForm::registerFunctions(Domain* domain) const {
+	for (Literals::const_iterator it = literals.begin(); it != literals.end(); ++it) {
+		domain->registerFunction(it->function);
 	}
 }
 
-void Clause::registerFunctions(Domain* domain) const {
-	for(const_iterator it = begin(); it != end(); ++it) {
-		it->registerFunctions(domain);
+NormalForm::Literals::size_type NormalForm::junctionSize(Junctions::const_iterator it) const {
+	Junctions::const_iterator nextIt(it + 1);
+	NormalForm::Literals::size_type nextLiterals;
+	if (nextIt == junctions.end()) {
+		nextLiterals = literals.size();
+	} else {
+		nextLiterals = *nextIt;
+	}
+	return nextLiterals - *it;
+}
+
+Variables NormalForm::getParams(const Literal& literal) const {
+	Variables::const_iterator begin(variables.begin() + literal.variables);
+	Variables::const_iterator end(begin + literal.function->arity);
+	return Variables(begin, end);
+}
+
+void NormalForm::dump(std::ostream& os, const char* junctionSeparator, const char* literalSeparator) const {
+	for(Junctions::const_iterator it = junctions.begin(); it != junctions.end(); ++it) {
+		if(it != junctions.begin()) {
+			os << " " << junctionSeparator << " ";
+		}
+		Literals::size_type size(junctionSize(it));
+		if(size > 1) {
+			os << "(";
+		}
+		Literals::const_iterator first(literals.begin() + *it);
+		for(Literals::const_iterator jt = first; jt != first + size; ++jt) {
+			if(jt != first) {
+				os << " " << literalSeparator << " ";
+			}
+			const Literal& literal(*jt);
+			if(literal.negated)
+				//os << "¬";
+				os << "!";
+			const Variables params(getParams(literal));
+			if (literal.function->name.empty() && params.size() == 1)
+				os << params;
+			else
+				os << literal.function->name << "(" << params << ")";
+		}
+		if(size > 1) {
+			os << ")";
+		}
 	}
 }
 
-
-CNF::CNF() {
+void NormalForm::Junction::addLiteral(const Variables& variables, const Literal& literal) {
+	literals.push_back(literal);
+	literals.back().variables = this->variables.size();
+	this->variables.insert(this->variables.end(), variables.begin(), variables.end());
 }
 
-CNF::CNF(const Disjunction& disjunction):
-	std::vector<Disjunction>(1, disjunction) {
+void NormalForm::addJunction(const Junction& junction) {
+	const Variables::size_type thisVarSize(this->variables.size());
+	const Literals::size_type thisLitSize(this->literals.size());
+	variables.insert(variables.end(), junction.variables.begin(), junction.variables.end());
+	for (Literals::const_iterator it = junction.literals.begin(); it != junction.literals.end(); ++it) {
+		Literal lit(*it);
+		lit.variables += thisVarSize;
+		literals.push_back(lit);
+	}
+	junctions.push_back(thisLitSize);
 }
+
+void NormalForm::toDual(NormalForm& target) const {
+	std::vector<Junction> newJunctions;
+	if (!junctions.empty()) {
+		Junctions::const_iterator junctionsIt(junctions.begin());
+		Literals::const_iterator literalsIt(literals.begin());
+		
+		// insert first junctions with 1 literal each
+		for(; literalsIt != literals.begin() + junctionSize(junctionsIt); ++literalsIt) {
+			const Literal& literal(*literalsIt);
+			Junction junction;
+			junction.addLiteral(getParams(literal), literal);
+			newJunctions.push_back(junction);
+		}
+		
+		for(++junctionsIt; junctionsIt != junctions.end(); ++junctionsIt) {
+			std::vector<Junction> tempJunctions;
+			for(std::vector<Junction>::const_iterator it = newJunctions.begin(); it != newJunctions.end(); ++it) {
+				Literals::const_iterator endLiteral(literalsIt + junctionSize(junctionsIt));
+				for(; literalsIt != endLiteral; ++literalsIt) {
+					const Literal& literal(*literalsIt);
+					Junction newJunction(*it);
+					newJunction.addLiteral(getParams(literal), literal);
+					tempJunctions.push_back(newJunction);
+				}
+			}
+			std::swap(tempJunctions, newJunctions);
+		}
+	}
+	for (std::vector<Junction>::const_iterator it = newJunctions.begin(); it != newJunctions.end(); ++it) {
+		target.addJunction(*it);
+	}
+}
+
+void NormalForm::append(const NormalForm& that) {
+	const Variables::size_type thisVarSize(variables.size());
+	const Literals::size_type thisLitSize(literals.size());
+	variables.insert(variables.end(), that.variables.begin(), that.variables.end());
+	for (Literals::const_iterator it = that.literals.begin(); it != that.literals.end(); ++it) {
+		Literal lit(*it);
+		lit.variables += thisVarSize;
+		literals.push_back(lit);
+	}
+	for (Junctions::const_iterator it = that.junctions.begin(); it != that.junctions.end(); ++it) {
+		junctions.push_back(*it + thisLitSize);
+	}
+}
+
 
 CNF* CNF::clone() const {
 	return new CNF(*this);
@@ -314,31 +374,12 @@ CNF CNF::cnf() const {
 
 DNF CNF::dnf() const {
 	DNF dnf;
-	if (!empty()) {
-		for(CNF::Disjunction::const_iterator jt = front().begin(); jt != front().end(); ++jt) {
-			DNF::Conjunction con(1, *jt);
-			dnf.push_back(con);
-		}
-		for(CNF::const_iterator it = begin() + 1; it != end(); ++it) {
-			DNF newDnf;
-			for(DNF::iterator kt = dnf.begin(); kt != dnf.end(); ++kt) {
-				for(CNF::Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-					DNF::Conjunction con(*kt);
-					con.push_back(*jt);
-					newDnf.push_back(con);
-				}
-			}
-			std::swap(dnf, newDnf);
-		}
-	}
+	toDual(dnf);
 	return dnf;
 }
 
 /// Simplifies the CNF, returns true if it was successful, false if simpliciation lead to an unsatisfiable proposition.
 /// If it returns false, cnf is untouched, otherwise it is updated with the simplified version
-
-// TODO: continue from here
-
 OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd) {
 	bool wasSimplified;
 	Substitution subst(Substitution::identity(variablesEnd));
@@ -346,12 +387,12 @@ OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin,
 		wasSimplified = false;
 
 		// DPLL Unit propagation: check which variables can be trivially grounded
-		for(iterator it = begin(); it != end(); ++it) {
-			if(it->size() == 1) {
-				const Literal& literal = it->front();
+		for(Disjunctions::iterator it = junctions.begin(); it != junctions.end(); ++it) {
+			if(junctionSize(it) == 1) {
+				const Literal& literal = literals[*it];
 				if(!literal.negated) {
-					const Atom& atom(literal.atom);
-					atom.groundIfUnique(state, variablesBegin, subst);
+					const Variables params(getParams(literal));
+					literal.function->groundIfUnique(params, state, variablesBegin, subst);
 				}
 			}
 		}
@@ -361,89 +402,49 @@ OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin,
 
 		// simplify CNF
 		CNF newCnf;
-		for(iterator it = begin(); it != end(); ++it) {
-			Disjunction newDisjunction;
+		for(Disjunctions::iterator it = junctions.begin(); it != junctions.end(); ++it) {
 			bool disjunctionTrue = false;
-			for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
-				const Literal& literal(*jt);
-				const Atom& atom(literal.atom);
-				if (atom.isCheckable(variablesBegin) == false) {
-					newDisjunction.push_back(literal);
-				} else {
+			Junction newJunction;
+			for(Literals::size_type j = *it; j < *it + junctionSize(it); ++j) {
+				const Literal& literal = literals[j];
+				const Variables params(getParams(literal));
+				if (params.allLessThan(variablesBegin)) {
 					wasSimplified = true;
-					bool value = atom.check(state) ^ literal.negated;
+					bool value = literal.function->get(params, state) ^ literal.negated;
 					if (value == true) {
 						disjunctionTrue = true;
 						break;
 					}
+				} else {
+					newJunction.addLiteral(params, literal);
 				}
 			}
 			if (disjunctionTrue == false) {
-				if (newDisjunction.empty()) {
+				if (newJunction.literals.empty()) {
 					// disjunction is empty, which means that all literals of the disjunction were false
 					return false;
 				}
-				newCnf.push_back(newDisjunction);
+				newCnf.addJunction(newJunction);
 			}
 		}
-		*this = newCnf;
+		std::swap(variables, newCnf.variables);
+		std::swap(literals, newCnf.literals);
+		std::swap(junctions, newCnf.junctions);
 	}
 	while (wasSimplified);
 
 	return subst;
 }
 
-void CNF::substitute(const Substitution& subst) {
-	for(iterator it = begin(); it != end(); ++it) {
-		for(Disjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
-			jt->substitute(subst);
-		}
-	}
-}
-
-void CNF::registerFunctions(Domain* domain) const {
-	for(const_iterator it = begin(); it != end(); ++it) {
-		for(Disjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-			jt->registerFunctions(domain);
-		}
-	}
-}
-
 void CNF::operator+=(const CNF& that) {
-	insert(end(), that.begin(), that.end());
+	append(that);
 }
 
 std::ostream& operator<<(std::ostream& os, const CNF& cnf) {
-	for(CNF::const_iterator it = cnf.begin(); it != cnf.end(); ++it) {
-		if(it != cnf.begin()) {
-			//os << " && ";
-			os << " ∧ ";
-		}
-		const CNF::Disjunction& dis = *it;
-		if(dis.size() > 1) {
-			os << "(";
-		}
-		for(CNF::Disjunction::const_iterator jt = dis.begin(); jt != dis.end(); ++jt) {
-			if(jt != it->begin()) {
-				//os << " || ";
-				os << " ∨ ";
-			}
-			os << *jt;
-		}
-		if(dis.size() > 1) {
-			os << ")";
-		}
-	}
+	cnf.dump(os, "∧", "∨");
 	return os;
 }
 
-
-DNF::DNF() {
-}
-
-DNF::DNF(const Conjunction& conjunction):
-	std::vector<Conjunction>(1, conjunction) {
-}
 
 DNF* DNF::clone() const {
 	return new DNF(*this);
@@ -451,23 +452,7 @@ DNF* DNF::clone() const {
 
 CNF DNF::cnf() const {
 	CNF cnf;
-	if (!empty()) {
-		for(DNF::Conjunction::const_iterator jt = front().begin(); jt != front().end(); ++jt) {
-			CNF::Disjunction dis(*jt);
-			cnf.push_back(dis);
-		}
-		for(DNF::const_iterator it = begin() + 1; it != end(); ++it) {
-			CNF newCnf;
-			for(CNF::iterator kt = cnf.begin(); kt != cnf.end(); ++kt) {
-				for(DNF::Conjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-					CNF::Disjunction dis(*kt);
-					dis.push_back(*jt);
-					newCnf.push_back(dis);
-				}
-			}
-			std::swap(cnf, newCnf);
-		}
-	}
+	toDual(cnf);
 	return cnf;
 }
 
@@ -476,47 +461,12 @@ DNF DNF::dnf() const {
 }
 
 
-void DNF::substitute(const Substitution& subst) {
-	for(iterator it = begin(); it != end(); ++it) {
-		for(Conjunction::iterator jt = it->begin(); jt != it->end(); ++jt) {
-			jt->substitute(subst);
-		}
-	}
-}
-
-void DNF::registerFunctions(Domain* domain) const {
-	for(const_iterator it = begin(); it != end(); ++it) {
-		for(Conjunction::const_iterator jt = it->begin(); jt != it->end(); ++jt) {
-			jt->registerFunctions(domain);
-		}
-	}
-}
-
 void DNF::operator+=(const DNF& that) {
-	insert(end(), that.begin(), that.end());
+	append(that);
 }
 
 std::ostream& operator<<(std::ostream& os, const DNF& dnf) {
-	for(DNF::const_iterator it = dnf.begin(); it != dnf.end(); ++it) {
-		if(it != dnf.begin()) {
-			//os << " || ";
-			os << " ∨ ";
-		}
-		const DNF::Conjunction& con = *it;
-		if(con.size() > 1) {
-			os << "(";
-		}
-		for(DNF::Conjunction::const_iterator jt = con.begin(); jt != con.end(); ++jt) {
-			if(jt != it->begin()) {
-				//os << " && ";
-				os << " ∧ ";
-			}
-			os << *jt;
-		}
-		if(con.size() > 1) {
-			os << ")";
-		}
-	}
+	dnf.dump(os, "∨", "∧");
 	return os;
 }
 

@@ -40,6 +40,15 @@ bool Variables::containsAny(const VariablesSet& variables) {
 	return false;
 }
 
+bool Variables::allLessThan(size_t upperBound) const {
+	for (const_iterator it = begin(); it != end(); ++it) {
+		if (it->index >= upperBound) {
+			return false;
+		}
+	}
+	return true;
+}
+		
 bool Variables::operator<(const Variables& that) const {
 	return std::lexicographical_compare(begin(), end(), that.begin(), that.end());
 }

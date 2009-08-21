@@ -30,11 +30,17 @@ struct Variables;
 typedef Variables Substitution;
 
 struct Variables: std::vector<Variable> {
+	Variables() {
+	}
+	Variables(const_iterator begin, const_iterator end):
+		std::vector<Variable>(begin, end) {
+	}
 
 	void substitute(const Substitution& subst);
 	size_t defrag(size_t constantsCount);
 	// TODO: dead code elimination
 	bool containsAny(const VariablesSet& variableSet);
+	bool allLessThan(const size_t upperBound) const;
 
 	static Substitution identity(size_t size);
 	

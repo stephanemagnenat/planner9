@@ -32,6 +32,7 @@ private:
 	friend class Head;
 	friend class Action;
 	friend class Atom;
+	friend class NormalForm;
 	void registerHead(const Head& head);
 	void registerFunction(const AbstractFunction* function);
 

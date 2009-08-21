@@ -26,8 +26,6 @@ struct Proposition: Expression<bool> {
 struct Atom: Proposition {
 	typedef Function<bool> BoolFunction;
 	
-	Atom(const Atom& that);
-	Atom(const Lookup<bool>& that);
 	Atom(const BoolFunction* function, const Variables& params);
 	~Atom();
 
@@ -37,13 +35,6 @@ struct Atom: Proposition {
 	void substitute(const Substitution& subst);
 	void registerFunctions(Domain* domain) const;
 	
-	void groundIfUnique(const State& state, const size_t constantsCount, Substitution& subst) const;
-	VariablesRanges getRange(const State& state, const size_t constantsCount) const;
-	bool isCheckable(const size_t constantsCount) const;
-	bool check(const State& state) const;
-
-	friend std::ostream& operator<<(std::ostream& os, const Atom& atom);
-
 	const BoolFunction* function;
 	Variables params;
 };
@@ -96,7 +87,7 @@ struct And: Proposition {
 	Propositions propositions;
 
 };
-
+/*
 // TODO: make atom a pointer
 struct Literal: Proposition {
 
@@ -114,7 +105,8 @@ struct Literal: Proposition {
 	bool negated;
 
 };
-
+*/
+/*
 // a disjunction of literals
 struct Clause: Proposition, std::vector<Literal> {
 
@@ -128,45 +120,69 @@ struct Clause: Proposition, std::vector<Literal> {
 	void registerFunctions(Domain* domain) const;
 
 };
+*/
+struct NormalForm: Proposition {
+	typedef Function<bool> BoolFunction;
+	struct Literal {
+		Literal();
+		Literal(const BoolFunction* function, const bool negated);
+		
+		const BoolFunction* function;
+		Variables::size_type variables;
+		bool negated;
+	};
+	typedef std::vector<Literal> Literals;
+	typedef std::vector<Literals::size_type> Junctions;
 
-struct CNF: Proposition, std::vector<Clause> {
-
-	typedef Clause Disjunction;
-
-	CNF();
-	CNF(const Disjunction& disjunction);
-
-	CNF* clone() const;
-	CNF cnf() const;
-	DNF dnf() const;
 	void substitute(const Substitution& subst);
 	void registerFunctions(Domain* domain) const;
+
+	Variables variables;
+	Literals literals;
+	Junctions junctions;
+
+public:
+	Literals::size_type junctionSize(Junctions::const_iterator it) const;
+	Variables getParams(const Literal& literal) const;
+	void dump(std::ostream& os, const char* junctionSeparator, const char* literalSeparator) const;
+	
+protected:
+	struct Junction {
+		void addLiteral(const Variables& variables, const Literal& literal);
+		Variables variables;
+		Literals literals;
+	};
+	
+	friend class Atom;
+	void addJunction(const Junction& junction);
+	void toDual(NormalForm& target) const;
+	void append(const NormalForm& that);
+};
+
+struct CNF: NormalForm {
+	typedef Junctions Disjunctions;
+	
+	virtual CNF* clone() const;
+	virtual CNF cnf() const;
+	virtual DNF dnf() const;
 	
 	OptionalVariables simplify(const State& state, const size_t variablesBegin, const size_t variablesEnd);
 
 	void operator+=(const CNF& that);
 
 	friend std::ostream& operator<<(std::ostream& os, const CNF& cnf);
-
 };
 
-struct DNF: Proposition, std::vector<std::vector<Literal> > {
+struct DNF: NormalForm {
+	typedef Junctions Conjunctions;
 
-	typedef std::vector<Literal> Conjunction;
-
-	DNF();
-	DNF(const Conjunction& conjunction);
-
-	DNF* clone() const;
-	CNF cnf() const;
-	DNF dnf() const;
-	void substitute(const Substitution& subst);
-	void registerFunctions(Domain* domain) const;
-
+	virtual DNF* clone() const;
+	virtual CNF cnf() const;
+	virtual DNF dnf() const;
+	
 	void operator+=(const DNF& that);
 
 	friend std::ostream& operator<<(std::ostream& os, const DNF& cnf);
-
 };
 
 #endif // LOGIC_HPP_
