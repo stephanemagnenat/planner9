@@ -20,7 +20,7 @@ struct State {
 		
 		virtual void insert(const Variables& params, const std::string& value) = 0;
 		
-		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) = 0;
+		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) const = 0;
 		
 		virtual void serialize(Serializer& serializer) const = 0;
 		virtual void deserialize(Serializer& serializer, size_t arity) = 0;		
@@ -51,7 +51,7 @@ struct State {
 			}
 		}
 		
-		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) {
+		virtual void dump(std::ostream& os, bool& first, const std::string& functionName) const {
 			for (typename Values::const_iterator it = values.begin(); it != values.end(); ++it) {
 				if(first) {
 					first = false;

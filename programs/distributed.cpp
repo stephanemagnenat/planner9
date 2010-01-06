@@ -5,7 +5,7 @@
 #include "../distributed/planner9-dbus.h"
 //#include "../problems/robots.hpp"
 //#include "problems/rover.hpp"
-#include "../problems/rescue-numeric.hpp"
+#include "../problems/rescue.hpp"
 #include <QApplication>
 #include <QTimer>
 #include <QDBusMetaType>

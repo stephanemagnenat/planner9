@@ -18,7 +18,7 @@ struct Problem {
 		
 		Lookup lookup(scopedLookup.lookup);
 		lookup.substitute(scope.merge(scopedLookup.scope));
-		state.insert<ValueType>(lookup.function, lookup.params, value);
+		lookup.function->set(lookup.params, state, value);
 	}
 	
 	void add(const ScopedLookup<bool>& scopedLookup) {
