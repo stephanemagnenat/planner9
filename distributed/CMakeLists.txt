@@ -5,6 +5,7 @@ if (QT4_FOUND)
 	set(QT_USE_QTNETWORK TRUE)
 	include(${QT_USE_FILE})
 	add_definitions(${QT_DEFINITIONS})
+	include_directories(${CMAKE_BINARY_DIR}/distributed)
 	
 	set (PLANNER9DISTRIBUTED_SRC
 		avahi-server.cpp
@@ -17,8 +18,6 @@ if (QT4_FOUND)
 	)
 	
 	qt4_automoc(${PLANNER9DISTRIBUTED_SRC})
-	
-	include_directories (${CMAKE_BINARY_DIR}/distributed)
 	
 	add_library(planner9distributed ${PLANNER9DISTRIBUTED_SRC})
 endif (QT4_FOUND)

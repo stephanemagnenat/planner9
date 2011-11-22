@@ -11,7 +11,7 @@
 
 struct ThreadedPlanner9: SimplePlanner9 {
 	
-	ThreadedPlanner9(const Problem& problem, size_t threadsCount, std::ostream* debugStream = 0);
+	ThreadedPlanner9(const Problem& problem, size_t threadsCount, const UserCost* userCost = 0, std::ostream* debugStream = 0);
 	
 	boost::optional<Plan> plan();
 

@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "initial state: "<< problem.state << std::endl;
 	std::cout << "initial network: " << problem.network << std::endl;
 	
-	ThreadedPlanner9 planner(problem, threadsCount, dump);
+	ThreadedPlanner9 planner(problem, threadsCount, 0, dump);
 
 	boost::optional<Plan> plan = planner.plan();
 	if(plan) {

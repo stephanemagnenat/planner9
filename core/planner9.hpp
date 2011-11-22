@@ -13,7 +13,9 @@ struct Problem;
 
 struct Planner9 {
 
-	Planner9(const Scope& problemScope, std::ostream* debugStream = 0);
+	struct UserCost;
+	
+	Planner9(const Scope& problemScope, const UserCost* userCost = 0, std::ostream* debugStream = 0);
 	virtual ~Planner9() {}
 	
 	typedef int Cost;
@@ -23,7 +25,6 @@ struct Planner9 {
 	struct SearchNode {
 		SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 		friend std::ostream& operator<<(std::ostream& os, const SearchNode& node);
-		Cost getTotalCost() const;
 		
 		const Plan plan;
 		const TaskNetwork network; // T
@@ -33,12 +34,23 @@ struct Planner9 {
 		const State state;
 	};
 	
+	// to provide user-defined cost
+	struct UserCost {
+		virtual Cost getPathCost(const SearchNode& node) const = 0;
+		virtual std::string getName() const = 0;
+	};
+	
+	//! Return total cost of node
+	static Cost getTotalCost(const UserCost* userCost, const SearchNode& node);
+	
 protected:
+	Cost getTotalCost(const SearchNode& node) const;
+	
 	void visitNode(const SearchNode* node);
 	void pushNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	virtual void pushNode(SearchNode* node) = 0;
 	virtual void success(const Plan& plan) = 0;
-
+	
 private:
 	typedef std::pair<Substitution, CNF> Grounding;
 	typedef std::vector<Grounding> Groundings;
@@ -47,14 +59,14 @@ private:
 
 protected:
 	const Scope problemScope;
+	const UserCost* userCost;
 	std::ostream*const debugStream;
-
 };
 
 struct SimplePlanner9: Planner9 {
 
-	SimplePlanner9(const Scope& problemScope, std::ostream* debugStream = 0);
-	SimplePlanner9(const Problem& problem, std::ostream* debugStream = 0);
+	SimplePlanner9(const Scope& problemScope, const UserCost* userCost = 0, std::ostream* debugStream = 0);
+	SimplePlanner9(const Problem& problem, const UserCost* userCost = 0, std::ostream* debugStream = 0);
 	~SimplePlanner9();
 	
 	boost::optional<Plan> plan();

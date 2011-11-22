@@ -43,6 +43,7 @@ const size_t toBalanceRatio = 3;
 SlavePlanner9::SlavePlanner9(const Domain& domain, std::ostream* debugStream):
 	timerId(-1),
 	planner(0),
+	userCost(0),
 	device(0),
 	stream(domain),
 	debugStream(debugStream),
@@ -131,7 +132,7 @@ void SlavePlanner9::messageAvailable() {
 					stream.write<quint32>(toSendCount);
 					for (size_t i = 0; i < toSendCount; ++i) {
 						stream.write(*(planner->nodes.begin()->second));
-						qDebug() << "cost" << (planner->nodes.begin()->second)->getTotalCost();
+						qDebug() << "cost" << Planner9::getTotalCost(userCost, *planner->nodes.begin()->second);
 						planner->nodes.erase(planner->nodes.begin());
 						//if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
 					}
@@ -143,6 +144,7 @@ void SlavePlanner9::messageAvailable() {
 			case CMD_PROBLEM_SCOPE: {
 				killPlanner();
 				const Scope scope(stream.read<Scope>());
+				// TODO: get user cost
 				runPlanner(scope);
 			} break;
 
@@ -245,7 +247,7 @@ void SlavePlanner9::timerEvent(QTimerEvent *event) {
 
 void SlavePlanner9::runPlanner(const Scope& scope) {
 	Q_ASSERT(planner == 0);
-	planner = new SimplePlanner9(scope, debugStream);
+	planner = new SimplePlanner9(scope, userCost, debugStream);
 	lastSentMinCost = Planner9::InfiniteCost;
 	lastSentMaxCost = Planner9::InfiniteCost;
 	lastSentCostTime = QTime::currentTime();
@@ -255,6 +257,10 @@ void SlavePlanner9::killPlanner() {
 	if (planner) {
 		delete planner;
 		planner = 0;
+		if (userCost) {
+			delete userCost;
+			userCost = 0;
+		}
 	}
 }
 
@@ -306,6 +312,7 @@ MasterPlanner9::Client::Client(ChunkedDevice* device) :
 }
 
 MasterPlanner9::MasterPlanner9(const Domain& domain, std::ostream* debugStream):
+	userCost(0),
 	initialNode(0),
 	stream(domain),
 	stoppingCount(0),
@@ -330,6 +337,8 @@ MasterPlanner9::~MasterPlanner9() {
 	}
 	if (initialNode)
 		delete initialNode;
+	if (this->userCost)
+		delete this->userCost;
 }
 
 bool MasterPlanner9::connectToSlave(const QString& hostName, quint16 port) {
@@ -343,7 +352,7 @@ bool MasterPlanner9::connectToSlave(const QString& hostName, quint16 port) {
 	return true;
 }
 
-void MasterPlanner9::plan(const Problem& problem) {
+void MasterPlanner9::plan(const Problem& problem, Planner9::UserCost* userCost) {
 	if (debugStream) {
 		*debugStream << Scope::setScope(problem.scope);
 		*debugStream << "initial state: "<< problem.state << std::endl;
@@ -355,6 +364,9 @@ void MasterPlanner9::plan(const Problem& problem) {
 	if (initialNode)
 		delete initialNode;
 	initialNode = new Planner9::SearchNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
+	if (this->userCost)
+		delete this->userCost;
+	this->userCost = userCost;
 	
 	replan();
 }
@@ -382,6 +394,7 @@ void MasterPlanner9::clientConnected() {
 
 	if (initialNode) {
 		sendScope(device);
+		// TODO: send user cost
 	
 		if (clients.size() == 1) {
 			if (debugStream) *debugStream << "Sending:\n" << *initialNode << "\ndone" << std::endl;
@@ -542,7 +555,7 @@ void MasterPlanner9::processMessage(Client& client) {
 				
 				stream.setDevice(destDevice);
 				stream.write(node);
-				highestCostIt.value().bestsMinCost = std::min(node.getTotalCost(), highestCostIt.value().bestsMinCost);
+				highestCostIt.value().bestsMinCost = std::min(Planner9::getTotalCost(userCost, node), highestCostIt.value().bestsMinCost);
 			}
 			
 			if (destDevice)

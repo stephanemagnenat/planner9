@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
 	for(size_t i = 0; i < maxRunCount; ++i) {
 		boost::progress_timer t;
 		
-		SimplePlanner9 planner(problem, dump);
+		SimplePlanner9 planner(problem, 0, dump);
 		boost::optional<Plan> plan = planner.plan();
 		if(plan) {
 			std::cout << "plan:\n" << *plan << std::endl;

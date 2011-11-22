@@ -46,6 +46,7 @@ private:
 private:
 	int timerId;
 	SimplePlanner9* planner;
+	Planner9::UserCost* userCost;
 	ChunkedDevice* device;
 	QTcpServer tcpServer;
 	Serializer stream;
@@ -80,7 +81,7 @@ public:
 	
 	bool connectToSlave(const QString& hostName, quint16 port);
 
-	void plan(const Problem& problem);
+	void plan(const Problem& problem, Planner9::UserCost* userCost = 0);
 
 public slots:
 	// TODO: debug/bench only
@@ -113,6 +114,7 @@ protected:
 
 private:
 	Problem problem;
+	Planner9::UserCost* userCost;
 	Planner9::SearchNode *initialNode;
 	typedef QMap<QTcpSocket*, Client> ClientsMap;
 	ClientsMap clients;

@@ -2,8 +2,8 @@
 #include "../core/plan.hpp"
 #include "../core/problem.hpp"
 
-ThreadedPlanner9::ThreadedPlanner9(const Problem& problem, size_t threadsCount, std::ostream* debugStream):
-	SimplePlanner9(problem, debugStream),
+ThreadedPlanner9::ThreadedPlanner9(const Problem& problem, size_t threadsCount, const UserCost* userCost, std::ostream* debugStream):
+	SimplePlanner9(problem, userCost, debugStream),
 	threadsCount(threadsCount),
 	workingThreadCount(0) {
 }
@@ -69,7 +69,7 @@ void ThreadedPlanner9::pushNode(SearchNode* node) {
 		*debugStream << "+ " << *node << std::endl;
 
 	boost::mutex::scoped_lock lock(mutex);
-	nodes.insert(SearchNodes::value_type(node->getTotalCost(), node));
+	nodes.insert(SearchNodes::value_type(getTotalCost(*node), node));
 	condition.notify_one();
 }
 

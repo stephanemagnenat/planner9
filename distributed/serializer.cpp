@@ -84,6 +84,8 @@ void Serializer::write(const Scope& scope) {
 		write(QString::fromStdString(scope.names[i]));
 }
 
+// TODO: serialize user cost
+
 template<>
 void Serializer::write(const Task& task) {
 	write<quint16>(domain.getHeadIndex(task.head));
@@ -200,6 +202,8 @@ Scope Serializer::read() {
 	}
 	return scope;
 }
+
+// TODO: deserialize user cost
 
 template<>
 Task Serializer::read() {
@@ -344,3 +348,5 @@ Planner9::SearchNode Serializer::read() {
 	const State state(read<State>());
 	return Planner9::SearchNode(plan, network, allocatedVariablesCount, cost, preconditions, state);				
 }
+
+
