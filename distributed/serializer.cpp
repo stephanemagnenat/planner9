@@ -181,7 +181,7 @@ void Serializer::write(const Planner9::SearchNode& node) {
 	write(node.plan);
 	write(node.network);
 	write(quint16(node.allocatedVariablesCount));
-	write(quint16(node.cost));
+	write(double(node.cost));
 	write(node.preconditions);
 	write(node.state);
 }
@@ -290,6 +290,8 @@ TaskNetwork Serializer::read() {
 	
 	// Note: for efficiency reasons, we temporary store indexes in Node*,
 	// which is unclean but faster than building an ad-hoc map.
+	// this is the rational behind the rather awkward 
+	// (TaskNetwork::Node*)(size_t) double cast.
 	TaskNetwork network;
 	
 	// read first nodes
@@ -301,7 +303,7 @@ TaskNetwork Serializer::read() {
 		const size_t successorsCount(read<quint16>());
 		node->successors.reserve(successorsCount);
 		for (size_t j = 0; j < successorsCount; ++j) {
-			node->successors.push_back((TaskNetwork::Node*)read<quint16>());
+			node->successors.push_back((TaskNetwork::Node*)(size_t)read<quint16>());
 		}
 		nodes.push_back(node);
 		network.first.push_back(node);
@@ -315,7 +317,7 @@ TaskNetwork Serializer::read() {
 		const size_t successorsCount(read<quint16>());
 		node->successors.reserve(successorsCount);
 		for (size_t j = 0; j < successorsCount; ++j) {
-			node->successors.push_back((TaskNetwork::Node*)read<quint16>());
+			node->successors.push_back((TaskNetwork::Node*)(size_t)read<quint16>());
 		}
 		nodes.push_back(node);
 		network.predecessors[node] = read<quint16>();
@@ -343,7 +345,7 @@ Planner9::SearchNode Serializer::read() {
 	const Plan plan(read<Plan>());
 	const TaskNetwork network(read<TaskNetwork>());
 	const size_t allocatedVariablesCount(read<quint16>());
-	const Cost cost(read<quint16>());
+	const Cost cost(read<double>());
 	const CNF preconditions(read<CNF>());
 	const State state(read<State>());
 	return Planner9::SearchNode(plan, network, allocatedVariablesCount, cost, preconditions, state);				

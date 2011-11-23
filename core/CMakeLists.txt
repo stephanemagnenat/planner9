@@ -10,6 +10,7 @@ set (PLANNER9CORE_SRC
 	scope.cpp
 	tasks.cpp
 	variable.cpp
+	costs.cpp
 )
 
 add_library(planner9core ${PLANNER9CORE_SRC})

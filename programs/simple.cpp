@@ -1,4 +1,5 @@
 #include "../core/planner9.hpp"
+#include "../core/costs.hpp"
 
 //#include "../problems/jug-pouring.hpp"
 //#include "../problems/basic.hpp"
@@ -33,7 +34,9 @@ int main(int argc, char* argv[]) {
 	for(size_t i = 0; i < maxRunCount; ++i) {
 		boost::progress_timer t;
 		
-		SimplePlanner9 planner(problem, 0, dump);
+		AlternativesCost alternativesCost;
+		
+		SimplePlanner9 planner(problem, &alternativesCost, dump);
 		boost::optional<Plan> plan = planner.plan();
 		if(plan) {
 			std::cout << "plan:\n" << *plan << std::endl;

@@ -13,12 +13,12 @@ struct Problem;
 
 struct Planner9 {
 
-	struct UserCost;
+	struct CostFunction;
 	
-	Planner9(const Scope& problemScope, const UserCost* userCost = 0, std::ostream* debugStream = 0);
+	Planner9(const Scope& problemScope, const CostFunction* costFunction, std::ostream* debugStream = 0);
 	virtual ~Planner9() {}
 	
-	typedef int Cost;
+	typedef double Cost;
 	static const Cost InfiniteCost;
 	
 	// nodes in our search tree
@@ -34,18 +34,13 @@ struct Planner9 {
 		const State state;
 	};
 	
-	// to provide user-defined cost
-	struct UserCost {
-		virtual Cost getPathCost(const SearchNode& node) const = 0;
+	//! functions that return the cost of a node
+	struct CostFunction {
+		virtual Cost getCost(const SearchNode& node) const = 0;
 		virtual std::string getName() const = 0;
 	};
 	
-	//! Return total cost of node
-	static Cost getTotalCost(const UserCost* userCost, const SearchNode& node);
-	
 protected:
-	Cost getTotalCost(const SearchNode& node) const;
-	
 	void visitNode(const SearchNode* node);
 	void pushNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state);
 	virtual void pushNode(SearchNode* node) = 0;
@@ -59,14 +54,14 @@ private:
 
 protected:
 	const Scope problemScope;
-	const UserCost* userCost;
+	const CostFunction* costFunction;
 	std::ostream*const debugStream;
 };
 
 struct SimplePlanner9: Planner9 {
 
-	SimplePlanner9(const Scope& problemScope, const UserCost* userCost = 0, std::ostream* debugStream = 0);
-	SimplePlanner9(const Problem& problem, const UserCost* userCost = 0, std::ostream* debugStream = 0);
+	SimplePlanner9(const Scope& problemScope, const CostFunction* costFunction, std::ostream* debugStream = 0);
+	SimplePlanner9(const Problem& problem, const CostFunction* costFunction, std::ostream* debugStream = 0);
 	~SimplePlanner9();
 	
 	boost::optional<Plan> plan();

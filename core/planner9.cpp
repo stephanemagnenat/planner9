@@ -32,29 +32,17 @@ std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 
 
 
-Planner9::Planner9(const Scope& problemScope, const UserCost* userCost, std::ostream* debugStream):
+Planner9::Planner9(const Scope& problemScope, const CostFunction* costFunction, std::ostream* debugStream):
 	problemScope(problemScope),
-	userCost(userCost),
+	costFunction(costFunction),
 	debugStream(debugStream) {
 	if (debugStream) {
 		*debugStream << Scope::setScope(this->problemScope); 
-		if (userCost)
-			*debugStream << "using user cost " << userCost->getName() << std::endl;
+		if (costFunction)
+			*debugStream << "using user cost " << costFunction->getName() << std::endl;
 		else
 			*debugStream << "no using user cost" << std::endl;
 	}
-}
-
-Planner9::Cost Planner9::getTotalCost(const SearchNode& node) const {
-	return getTotalCost(userCost, node);
-}
-
-Planner9::Cost Planner9::getTotalCost(const UserCost* userCost, const SearchNode& node) {
-	Cost pathCost(node.cost);
-	if (userCost)
-		pathCost = userCost->getPathCost(node);
-	return pathCost + node.network.first.size() + node.network.predecessors.size();
-	//return pathCost + plan.size() + (network.first.size() + network.predecessors.size());
 }
 
 Planner9::Groundings Planner9::ground(const VariablesSet& affectedVariables, const CNF& preconditions, const State& state, size_t allocatedVariablesCount) {
@@ -349,13 +337,13 @@ void Planner9::pushNode(const Plan& plan, const TaskNetwork& network, size_t fre
 }
 
 
-SimplePlanner9::SimplePlanner9(const Scope& problemScope, const UserCost* userCost, std::ostream* debugStream):
-	Planner9(problemScope, userCost, debugStream),
+SimplePlanner9::SimplePlanner9(const Scope& problemScope, const CostFunction* costFunction, std::ostream* debugStream):
+	Planner9(problemScope, costFunction, debugStream),
 	iterationCount(0) {
 }
 
-SimplePlanner9::SimplePlanner9(const Problem& problem, const UserCost* userCost, std::ostream* debugStream):
-	Planner9(problem.scope, userCost, debugStream),
+SimplePlanner9::SimplePlanner9(const Problem& problem, const CostFunction* costFunction, std::ostream* debugStream):
+	Planner9(problem.scope, costFunction, debugStream),
 	iterationCount(0) {
 	
 	// HTN: P = the empty plan
@@ -415,7 +403,7 @@ void SimplePlanner9::pushNode(SearchNode* node) {
 	if (debugStream)
 		*debugStream << "+ " << *node << std::endl;
 
-	nodes.insert(SearchNodes::value_type(getTotalCost(*node), node));
+	nodes.insert(SearchNodes::value_type(costFunction->getCost(*node), node));
 }
 
 void SimplePlanner9::success(const Plan& plan) {
