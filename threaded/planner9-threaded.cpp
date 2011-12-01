@@ -69,7 +69,7 @@ void ThreadedPlanner9::pushNode(SearchNode* node) {
 		*debugStream << "+ " << *node << std::endl;
 
 	boost::mutex::scoped_lock lock(mutex);
-	nodes.insert(SearchNodes::value_type(costFunction->getCost(*node), node));
+	nodes.insert(SearchNodes::value_type(node->getTotalCost(), node));
 	condition.notify_one();
 }
 

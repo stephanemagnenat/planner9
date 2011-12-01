@@ -181,9 +181,10 @@ void Serializer::write(const Planner9::SearchNode& node) {
 	write(node.plan);
 	write(node.network);
 	write(quint16(node.allocatedVariablesCount));
-	write(double(node.cost));
 	write(node.preconditions);
 	write(node.state);
+	write(double(node.pathCost));
+	write(double(node.heuristicCost));
 }
 
 template<>
@@ -348,7 +349,9 @@ Planner9::SearchNode Serializer::read() {
 	const Cost cost(read<double>());
 	const CNF preconditions(read<CNF>());
 	const State state(read<State>());
-	return Planner9::SearchNode(plan, network, allocatedVariablesCount, cost, preconditions, state);				
+	const Cost pathCost(read<double>());
+	const Cost heuristicCost(read<double>());
+	return Planner9::SearchNode(plan, network, allocatedVariablesCount, preconditions, state, pathCost, heuristicCost);				
 }
 
 

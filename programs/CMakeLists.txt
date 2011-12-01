@@ -9,7 +9,10 @@ if (QT4_FOUND)
 	include_directories(${CMAKE_BINARY_DIR}/programs)
 
 	add_executable(p9simple simple.cpp)
-	target_link_libraries(p9simple planner9core ${QT_QTCORE_LIBRARIES})
+	target_link_libraries(p9simple planner9core)
+	
+	add_executable(p9simpleproba simple-proba.cpp)
+	target_link_libraries(p9simpleproba planner9core)
 	
 	add_executable(p9threaded threaded.cpp)
 	target_link_libraries(p9threaded planner9threaded planner9core ${Boost_THREAD_LIBRARY})

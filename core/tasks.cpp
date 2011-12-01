@@ -19,6 +19,7 @@ std::ostream& operator<<(std::ostream& os, const Task& task) {
 
 Substitution Task::getSubstitution(const size_t taskScopeSize, const Variable::Index nextVariable) const {
 	Substitution subst(params);
+	assert (taskScopeSize >= params.size());
 	size_t newVariables = taskScopeSize - params.size();
 	for(size_t i = 0; i < newVariables; ++i) {
 		subst.push_back(Variable(nextVariable + i));

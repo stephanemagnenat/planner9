@@ -1,6 +1,7 @@
 #include "planner9.hpp"
 #include "problem.hpp"
 #include "relations.hpp"
+#include "costs.hpp"
 #include <iostream>
 #include <set>
 
@@ -12,17 +13,16 @@
 
 const Planner9::Cost Planner9::InfiniteCost = std::numeric_limits<int>::max();
 
-Planner9::SearchNode::SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state):
+Planner9::SearchNodeData::SearchNodeData(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, const CNF& preconditions, const State& state):
 	plan(plan),
 	network(network),
 	allocatedVariablesCount(allocatedVariablesCount),
-	cost(cost),
 	preconditions(preconditions),
 	state(state) {
 }
 
-std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
-	os << "node " << (&node) << " costs " << node.cost << std::endl;
+std::ostream& operator<<(std::ostream& os, const Planner9::SearchNodeData& node) {
+	os << "node " << (&node) << std::endl;
 	os << "after " << node.plan << std::endl;
 	os << "do " << node.network << std::endl;
 	os << "such that " << node.preconditions << std::endl;
@@ -31,6 +31,27 @@ std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
 }
 
 
+Planner9::SearchNode::SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, const CNF& preconditions, const State& state, const Cost pathPlusAlternativeCost, const CostFunction* costFunction):
+	SearchNodeData(plan, network, allocatedVariablesCount, preconditions, state),
+	pathCost(costFunction->getPathCost(*this, pathPlusAlternativeCost)),
+	heuristicCost(costFunction->getHeuristicCost(*this))
+{
+}
+
+Planner9::SearchNode::SearchNode(const Plan& plan, const TaskNetwork& network, size_t allocatedVariablesCount, const CNF& preconditions, const State& state, const Planner9::Cost pathCost, const Planner9::Cost heuristicCost):
+	SearchNodeData(plan, network, allocatedVariablesCount, preconditions, state),
+	pathCost(pathCost),
+	heuristicCost(heuristicCost)
+{
+}
+
+std::ostream& operator<<(std::ostream& os, const Planner9::SearchNode& node) {
+	os << (const Planner9::SearchNodeData&)node;
+	os << "cost path " << node.pathCost << ", heuristic " << node.heuristicCost << std::endl;
+	return os;
+}
+
+static AlternativesCost alternativesCost;
 
 Planner9::Planner9(const Scope& problemScope, const CostFunction* costFunction, std::ostream* debugStream):
 	problemScope(problemScope),
@@ -38,10 +59,12 @@ Planner9::Planner9(const Scope& problemScope, const CostFunction* costFunction, 
 	debugStream(debugStream) {
 	if (debugStream) {
 		*debugStream << Scope::setScope(this->problemScope); 
-		if (costFunction)
+		if (costFunction) {
 			*debugStream << "using user cost " << costFunction->getName() << std::endl;
-		else
-			*debugStream << "no using user cost" << std::endl;
+		} else {
+			*debugStream << "no using user cost, defaulting to AlternativesCost" << std::endl;
+			this->costFunction = &alternativesCost;
+		}
 	}
 }
 
@@ -147,10 +170,10 @@ Planner9::Groundings Planner9::ground(const VariablesSet& affectedVariables, con
 }
 
 void Planner9::visitNode(const SearchNode* n) {
-	visitNode(n->plan, n->network, n->allocatedVariablesCount, n->cost, n->preconditions, n->state);
+	visitNode(n->plan, n->network, n->allocatedVariablesCount, n->preconditions, n->state, n->pathCost);
 }
 
-void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const size_t allocatedVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
+void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const size_t allocatedVariablesCount, const CNF& preconditions, const State& state, Cost cost) {
 	// HTN: T0 ← {t ∈ T : no other task in T is constrained to precede t}
 	const TaskNetwork::Tasks& t0 = network.first;
 	
@@ -186,7 +209,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 		const Action* action = dynamic_cast<const Action*>(head);
 		if(action != 0) {
 			if (debugStream)
-				*debugStream << "action" << std::endl;
+				*debugStream << "action " << std::endl;
 			// HTN: if t is a primitive task then
 
 			// TODO: HTN: A ← {(a, θ) : a is a ground instance of an operator in D, θ is a substi-
@@ -268,7 +291,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 					const State newState = effects.apply(state, subst);
 
 					// HTN: T0 ← {t ∈ T : no task in T is constrained to precede t}
-					pushNode(assignedPlan, assignedNetwork, assignedAllocatedVariablesCount, cost, remainingPreconditions, newState);
+					pushNode(assignedPlan, assignedNetwork, assignedAllocatedVariablesCount, remainingPreconditions, newState, cost);
 				}
 			} else {
 				if (debugStream) *debugStream << "simp. pre failed" << std::endl;
@@ -278,7 +301,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 		// if t is a method then decompose
 		const Method* method = dynamic_cast<const Method*>(head);
 		if (method != 0) {
-			if (debugStream) *debugStream << "method" << std::endl;
+			if (debugStream)
+				*debugStream << "method" << std::endl;
 			// HTN: else
 
 			// HTN: M ← {(m, θ) : m is an instance of a method in D, θ uniﬁes {head(m), t},
@@ -322,7 +346,7 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 					// HTN: if sub(m) = ∅ then
 					// HTN: T0 ← {t ∈ sub(m) : no task in T is constrained to precede t}
 					// HTN: else T0 ← {t ∈ T : no task in T is constrained to precede t}
-					pushNode(newPlan, newNetwork, newAllocatedVariablesCount, newCost, newPreconditions, state);
+					pushNode(newPlan, newNetwork, newAllocatedVariablesCount, newPreconditions, state, newCost);
 				} else {
 					if (debugStream)
 						*debugStream << "simp. pre failed" << std::endl;
@@ -332,8 +356,8 @@ void Planner9::visitNode(const Plan& plan, const TaskNetwork& network, const siz
 	}
 }
 
-void Planner9::pushNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, Cost cost, const CNF& preconditions, const State& state) {
-	pushNode(new SearchNode(plan, network, freeVariablesCount, cost, preconditions, state));
+void Planner9::pushNode(const Plan& plan, const TaskNetwork& network, size_t freeVariablesCount, const CNF& preconditions, const State& state, const Cost pathPlusAlternativeCost) {
+	pushNode(new SearchNode(plan, network, freeVariablesCount, preconditions, state, pathPlusAlternativeCost, costFunction));
 }
 
 
@@ -347,8 +371,7 @@ SimplePlanner9::SimplePlanner9(const Problem& problem, const CostFunction* costF
 	iterationCount(0) {
 	
 	// HTN: P = the empty plan
-	Planner9::pushNode(Plan(), problem.network, problemScope.getSize(), 0, CNF(), problem.state);
-	
+	Planner9::pushNode(Plan(), problem.network, problemScope.getSize(), CNF(), problem.state, 0);
 }
 
 SimplePlanner9::~SimplePlanner9() {
@@ -403,7 +426,7 @@ void SimplePlanner9::pushNode(SearchNode* node) {
 	if (debugStream)
 		*debugStream << "+ " << *node << std::endl;
 
-	nodes.insert(SearchNodes::value_type(costFunction->getCost(*node), node));
+	nodes.insert(SearchNodes::value_type(node->getTotalCost(), node));
 }
 
 void SimplePlanner9::success(const Plan& plan) {

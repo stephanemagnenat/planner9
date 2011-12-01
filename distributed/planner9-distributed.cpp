@@ -134,8 +134,10 @@ void SlavePlanner9::messageAvailable() {
 					qDebug() << "Sending" << toSendCount << "nodes on" << planner->nodes.size();
 					stream.write<quint32>(toSendCount);
 					for (size_t i = 0; i < toSendCount; ++i) {
-						stream.write(*(planner->nodes.begin()->second));
-						qDebug() << "cost" << costFunction->getCost(*planner->nodes.begin()->second);
+						const Planner9::SearchNode* node(planner->nodes.begin()->second);
+						stream.write(*node);
+						qDebug() << "cost " << node->getTotalCost() << " - path " << node->pathCost << ", heuristic " << node->heuristicCost;
+						delete node;
 						planner->nodes.erase(planner->nodes.begin());
 						//if (debugStream) *debugStream  << "sending:\n" << *(planner->nodes.begin()->second) << "\ndone" << std::endl;
 					}
@@ -367,7 +369,7 @@ void MasterPlanner9::plan(const Problem& problem, Planner9::CostFunction* costFu
 
 	if (initialNode)
 		delete initialNode;
-	initialNode = new Planner9::SearchNode(Plan(), problem.network, problem.scope.getSize(), 0, CNF(), problem.state);
+	initialNode = new Planner9::SearchNode(Plan(), problem.network, problem.scope.getSize(), CNF(), problem.state, 0, costFunction);
 	this->costFunction = costFunction;
 	
 	replan();
@@ -396,7 +398,7 @@ void MasterPlanner9::clientConnected() {
 
 	if (initialNode) {
 		sendScope(device);
-		// TODO: send user cost
+		// TODO: send user cost function... describe which to use in a user-friendly way, enum?
 	
 		if (clients.size() == 1) {
 			if (debugStream) *debugStream << "Sending:\n" << *initialNode << "\ndone" << std::endl;
@@ -557,7 +559,7 @@ void MasterPlanner9::processMessage(Client& client) {
 				
 				stream.setDevice(destDevice);
 				stream.write(node);
-				highestCostIt.value().bestsMinCost = std::min(costFunction->getCost(node), highestCostIt.value().bestsMinCost);
+				highestCostIt.value().bestsMinCost = std::min(node.getTotalCost(), highestCostIt.value().bestsMinCost);
 			}
 			
 			if (destDevice)
