@@ -15,6 +15,7 @@ std::string AlternativesCost::getName() const {
 
 
 ContextualizedActionCost::ContextualizedActionCost():
+	defaultRate(0.5),
 	maxSuccessRate(0.9)
 {}
 
@@ -37,7 +38,7 @@ Planner9::Cost ContextualizedActionCost::getPathCost(const Planner9::SearchNodeD
 		else
 			utility = utilityIt->second;
 		
-		double rate(maxSuccessRate);
+		double rate(defaultRate);
 		for (size_t j = 0; j <= i; ++j) {
 			size_t len(i-j);
 			ContextualizedAction key;
@@ -90,12 +91,12 @@ void ContextualizedActionCost::setSuccessUtilitise(const SuccessUtilites& utilit
 		it->second /= maxUtility;
 }
 
-void ContextualizedActionCost::setSuccessRates(const SuccessRates& rates) {
-	if (rates.empty())
-		throw std::runtime_error("No success rates given");
+void ContextualizedActionCost::setSuccessRates(const SuccessRates& rates, double defaultRate) {
+	
+	setDefaultSuccessRate(defaultRate);
 	
 	// check and compute max success rate
-	double maxRate(0);
+	double maxRate(defaultRate);
 	for (SuccessRates::const_iterator it(rates.begin()); it != rates.end(); ++it) {
 		const double rate(it->second);
 		if (rate < 0)
@@ -111,6 +112,14 @@ void ContextualizedActionCost::setSuccessRates(const SuccessRates& rates) {
 	// copy
 	maxSuccessRate = maxRate;
 	successRates = rates;
+}
+
+void ContextualizedActionCost::setDefaultSuccessRate(double defaultRate) {
+	if (defaultRate < 0)
+		throw std::runtime_error("Default success rate must be larger or equal to 0");
+	if (defaultRate >= 1)
+		throw std::runtime_error("Default success rate must be smaller than 1");
+	this->defaultRate = defaultRate;
 }
 
 

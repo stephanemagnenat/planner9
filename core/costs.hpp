@@ -23,10 +23,12 @@ struct ContextualizedActionCost: public Planner9::CostFunction
 	virtual std::string getName() const;
 	
 	void setSuccessUtilitise(const SuccessUtilites& utilities);
-	void setSuccessRates(const SuccessRates& rates);
+	void setSuccessRates(const SuccessRates& rates, double defaultRate);
+	void setDefaultSuccessRate(double defaultRate);
 	
 protected:
 	double maxSuccessRate;
+	double defaultRate;
 	SuccessUtilites successUtilities; //!< utilities for every action, must be 0 < u(a) <= 1
 	SuccessRates successRates; //! success rates for every contextualised action, must be 0 <= r(ca) < 1
 };
