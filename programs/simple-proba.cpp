@@ -4,6 +4,8 @@
 #include "../problems/robot-proba.hpp"
 #include "../problems/robot-proba2.hpp"
 
+#include <fstream>
+
 using namespace std;
 
 struct SuccessEstimatorData
@@ -85,8 +87,19 @@ void testLearning(std::ostream* dump) {
 	const double realPutDownRate(0.8);
 	const double realOtherRate(0.9);
 	
+	// output files and initial probabilities
+	std::ofstream dropBallStream("drop-ball.txt");
+	std::ofstream dropGlassStream("drop-glass.txt");
+	std::ofstream putDownStream("put-down.txt");
+	std::ofstream otherStream("other.txt");
+	
+	otherStream << "0 0.5 " << estOther.getP() << " " << estOther.a << " " << estOther.b << std::endl;
+	putDownStream << "0 0.5 " << estPutDown.getP() << " " << estPutDown.a << " " << estPutDown.b << std::endl;
+	dropBallStream << "0 0.5 " << estDropBall.getP() << " " << estDropBall.a << " " << estDropBall.b << std::endl;
+	dropGlassStream << "0 0.5 " << estDropGlass.getP() << " " << estDropGlass.a << " " << estDropGlass.b << std::endl;
+	
 	const char* objectsToFetch[] = { "glass", "ball" };
-	for (int t = 0; t < 100; ++t) {
+	for (int t = 1; t <= 100; ++t) {
 		// object name
 		const int objId(t % 2);
 		const char *objectName(objectsToFetch[objId]);
@@ -117,18 +130,25 @@ void testLearning(std::ostream* dump) {
 		// step one is always other
 		const bool stepOneR(draw(realOtherRate));
 		estOther.update(t, stepOneR ? 1 : 0);
+		otherStream << t << " " << (stepOneR ? 1 : 0) << " " << estOther.getP() << " " << estOther.a << " " << estOther.b << std::endl;
 		if (stepOneR) {
 			const std::string& task0((*plan)[0].head->name);
 			const std::string& task1((*plan)[1].head->name);
 			// step 2
 			if (task1 == "putObjectDown") {
-				estPutDown.update(t, draw(realPutDownRate) ? 1 : 0);
+				const int r(draw(realPutDownRate) ? 1 : 0);
+				estPutDown.update(t, r);
+				putDownStream << t << " " << r << " " << estPutDown.getP() << " " << estPutDown.a << " " << estPutDown.b << std::endl;
 			} else {
 				assert(task1 == "dropObject");
 				if (task0 == "takeBall") {
-					estDropBall.update(t, draw(realDropBallRate) ? 1 : 0);
+					const int r(draw(realDropBallRate) ? 1 : 0);
+					estDropBall.update(t, r);
+					dropBallStream << t << " " << r << " " << estDropBall.getP() << " " << estDropBall.a << " " << estDropBall.b << std::endl;
 				} else if (task0 == "takeGlass") {
-					estDropGlass.update(t, draw(realDropGlassRate) ? 1 : 0);
+					const int r(draw(realDropGlassRate) ? 1 : 0);
+					estDropGlass.update(t, r);
+					dropGlassStream << t << " " << r << " " << estDropGlass.getP() << " " << estDropGlass.a << " " << estDropGlass.b << std::endl;
 				} else {
 					assert(false);
 				}
