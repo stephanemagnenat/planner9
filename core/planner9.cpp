@@ -388,7 +388,7 @@ boost::optional<Plan> SimplePlanner9::plan() {
 	std::cout << "Terminated after " << iterationCount << " iterations" << std::endl;
 
 	if(plans.empty())
-		return false;
+		return boost::none;
 	else
 		return plans.front();
 }

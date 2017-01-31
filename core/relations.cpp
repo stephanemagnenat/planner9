@@ -39,13 +39,13 @@ OptionalVariables unify(const Variables& stateParams, const Variables& params, c
 		const Variable& variable = params[i];
 		if (variable.index < constantsCount) {
 			if (variable != stateVariable)
-				return false;
+				return boost::none;
 		} else {
 			assert(variable.index < unifyingSubst.size());
 			Variable& substitutionVariable = unifyingSubst[variable.index];
 			if (substitutionVariable != variable) {
 				if (substitutionVariable != stateVariable)
-					return false;
+					return boost::none;
 			} else {
 				substitutionVariable = stateVariable;
 			}

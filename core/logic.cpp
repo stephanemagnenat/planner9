@@ -382,7 +382,7 @@ OptionalVariables CNF::simplify(const State& state, const size_t variablesBegin,
 			if (disjunctionTrue == false) {
 				if (newJunction.literals.empty()) {
 					// disjunction is empty, which means that all literals of the disjunction were false
-					return false;
+					return boost::none;
 				}
 				newCnf.addJunction(newJunction);
 			}

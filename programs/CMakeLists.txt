@@ -15,7 +15,7 @@ if (QT4_FOUND)
 	target_link_libraries(p9simpleproba planner9core)
 	
 	add_executable(p9threaded threaded.cpp)
-	target_link_libraries(p9threaded planner9threaded planner9core ${Boost_THREAD_LIBRARY})
+	target_link_libraries(p9threaded planner9threaded planner9core ${Boost_LIBRARIES})
 
 	qt4_automoc(distributed.cpp)
 	add_executable(p9distributed distributed.cpp)
